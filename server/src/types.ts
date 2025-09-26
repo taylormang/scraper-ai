@@ -25,6 +25,11 @@ export interface ScraperConfig {
   maxPages?: number; // Maximum pages to scrape (default: 2)
   headers?: Record<string, string>;
   timeout?: number;
+
+  // Auto-schema options (all optional, sensible defaults)
+  enableAutoSchema?: boolean; // default: true
+  schemaEnforcement?: 'strict' | 'lenient'; // default: 'lenient'
+  preserveExtraFields?: boolean; // default: true
 }
 
 export interface AIExtractionResult {
@@ -51,4 +56,37 @@ export interface DataRecord {
   id: string;
   scrapedData: ScrapedData;
   storedAt: Date;
+}
+
+// AI-related interfaces (from new infrastructure)
+export interface ChatMessage {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+}
+
+export interface AIConfig {
+  model?: string;
+  temperature?: number;
+  maxTokens?: number;
+  responseFormat?: 'json' | 'text';
+}
+
+export interface AIResponse {
+  content: string;
+  usage?: {
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+  };
+}
+
+export interface ElementInfo {
+  index: number;
+  tagName: string;
+  textContent: string;
+  innerText: string;
+  href: string;
+  id: string;
+  className: string;
+  outerHTML: string;
 }

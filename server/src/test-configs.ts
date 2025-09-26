@@ -7,6 +7,7 @@ export const testConfigs: Record<string, ScraperConfig> = {
     extractionPrompt: 'Extract each quote as a separate object with: quote text, author name, and tags (as an array). Return an array of quote objects.',
     navigationType: 'button',
     navigationPrompt: 'click next button',
+    maxPages: 3,
     headers: {
       'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
     },
@@ -20,7 +21,7 @@ export const testConfigs: Record<string, ScraperConfig> = {
     extractionPrompt: 'Extract each article as an object with: title, link URL, points/score, author, and comment count. Return an array of article objects.',
     navigationType: 'button',
     navigationPrompt: 'click "More"',
-    maxPages: 2,
+    maxPages: 3,
     headers: {
       'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
     },

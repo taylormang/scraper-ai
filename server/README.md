@@ -5,9 +5,12 @@ AI-powered web scraping system with natural language extraction prompts.
 ## Features
 
 - **AI-Powered Extraction**: Describe what you want extracted in natural language instead of writing CSS selectors
+- **Multi-Page Navigation**: AI-powered navigation through paginated content with button/link detection
+- **Auto-Generated Schema Validation**: Zero-configuration data consistency across all pages
 - **Configuration-Driven**: Add new scrapers in <5 minutes with simple config files
 - **Multiple Site Support**: Tested with quotes, news articles, and more
-- **Structured Data Output**: Automatically extracts arrays of structured objects
+- **Structured Data Output**: Automatically extracts arrays of structured objects with type safety
+- **Rate Limiting**: Built-in OpenAI API rate limiting to prevent abuse
 - **JSON Storage**: Local file-based storage with unique IDs and metadata
 
 ## Quick Start
@@ -40,6 +43,9 @@ export const testConfigs = {
     name: 'quotes-scraper-ai',
     baseUrl: 'http://quotes.toscrape.com',
     extractionPrompt: 'Extract each quote as a separate object with: quote text, author name, and tags (as an array). Return an array of quote objects.',
+    navigationType: 'button',           // AI-powered multi-page navigation
+    navigationPrompt: 'click next button',
+    maxPages: 3,                       // Extract from multiple pages
     headers: { 'User-Agent': 'Mozilla/5.0...' },
     timeout: 10000
   }
@@ -59,6 +65,8 @@ The AI automatically:
 - Identifies the requested data structures
 - Returns structured JSON arrays
 - Handles different content types (lists, tables, articles, etc.)
+- Discovers and enforces consistent schemas across all pages
+- Navigates through multi-page content automatically
 
 ### Example Output
 
@@ -107,10 +115,38 @@ const configName = 'hackernews'; // Options: 'quotes', 'hackernews', 'products'
 - OpenAI API key
 - Internet connection
 
+## Schema Validation
+
+The system automatically ensures data consistency across all pages:
+
+```bash
+📋 Auto-discovered schema with 3 fields: quote, author, tags
+✅ Schema enforcement passed: 10 items conform to established schema
+```
+
+- **Zero Configuration**: Schemas auto-discovered from first page
+- **Type Safety**: Maintains consistent data types across all pages
+- **Graceful Handling**: Missing fields get sensible defaults
+- **Conflict Resolution**: Intelligent handling of data inconsistencies
+
 ## Architecture
 
-- `src/scraper.ts` - Main scraper class with AI integration
-- `src/ai-extractor.ts` - OpenAI API integration for content extraction
+### Core Components
+- `src/scraper.ts` - Main scraper class with multi-page support
+- `src/ai-extractor.ts` - AI-powered content extraction
+- `src/navigator.ts` - AI-powered page navigation
 - `src/storage.ts` - JSON file storage system
+
+### AI Infrastructure
+- `src/ai-service.ts` - Centralized OpenAI API with rate limiting
+- `src/prompt-builder.ts` - Template-based prompt engineering
+- `src/content-processor.ts` - HTML cleaning and preprocessing
+- `src/result-parser.ts` - Standardized response parsing
+
+### Schema System
+- `src/auto-schema.ts` - Automatic schema discovery from data
+- `src/schema-enforcer.ts` - Type validation and coercion
+
+### Configuration
 - `src/test-configs.ts` - Site configuration definitions
 - `src/types.ts` - TypeScript interfaces

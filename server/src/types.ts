@@ -26,3 +26,16 @@ export interface ScraperResult {
   error?: string;
   duration: number;
 }
+
+// Storage types
+export interface StorageResult {
+  success: boolean;
+  filePath?: string;
+  error?: string;
+}
+
+export interface DataRecord {
+  id: string;
+  scrapedData: ScrapedData;
+  storedAt: Date;
+}

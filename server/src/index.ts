@@ -1,6 +1,7 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { BasicScraper } from './scraper';
+import { JsonStorage } from './storage';
 import { ScraperConfig } from './types';
 
 console.log('🚀 Scraper Engine starting up...');
@@ -22,4 +23,20 @@ const testConfig: ScraperConfig = {
 
 const scraper = new BasicScraper(testConfig);
 console.log('🔧 BasicScraper instance created successfully');
-console.log('📋 Test config:', testConfig);
+
+// Test the storage module
+const storage = new JsonStorage('./data');
+console.log('💾 JsonStorage instance created successfully');
+
+// Test storage functionality
+async function testStorage() {
+  console.log('\n--- Testing Storage ---');
+  
+  // List existing records
+  const existingRecords = await storage.listRecords();
+  console.log(`📋 Existing records: ${existingRecords.join(', ') || 'none'}`);
+  
+  console.log('✅ Storage module test completed');
+}
+
+testStorage().catch(console.error);

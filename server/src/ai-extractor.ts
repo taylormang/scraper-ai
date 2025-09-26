@@ -17,12 +17,17 @@ export class AIExtractor {
       $('script, style, nav, footer, header, .ads, .advertisement').remove();
 
       // Get clean text content
-      const cleanContent = $('body').text()
+      const fullContent = $('body').text()
         .replace(/\s+/g, ' ')
-        .trim()
-        .substring(0, 15000); // Limit content size for API
+        .trim();
 
-      console.log(`📝 Cleaned content length: ${cleanContent.length} chars`);
+      // Increase content limit for better extraction coverage
+      const cleanContent = fullContent.substring(0, 25000); // Increased limit
+
+      console.log(`📝 Original content length: ${fullContent.length} chars, Limited to: ${cleanContent.length} chars`);
+
+      // Debug: Show a sample of what we're sending to AI
+      console.log(`📋 Content sample (first 500 chars): ${cleanContent.substring(0, 500)}...`);
 
       if (!this.apiKey) {
         throw new Error('OpenAI API key is required for AI extraction. Please set OPENAI_API_KEY in your .env file.');
@@ -44,11 +49,11 @@ export class AIExtractor {
             },
             {
               role: 'user',
-              content: `Extract the following from this web page content:\n\n${prompt}\n\nWeb page content:\n${cleanContent}\n\nReturn the results as a JSON object with an "items" array containing the extracted data.`
+              content: `Extract ALL instances of the following from this web page content. Do not stop early - make sure to process the entire content and extract every single item that matches the criteria:\n\n${prompt}\n\nWeb page content:\n${cleanContent}\n\nIMPORTANT: Extract EVERY item that matches the criteria. Do not limit yourself to a subset. Return the results as a JSON object with an "items" array containing ALL the extracted data.`
             }
           ],
           temperature: 0.1,
-          max_tokens: 2000,
+          max_tokens: 3000,
           response_format: { type: "json_object" }
         })
       });

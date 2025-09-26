@@ -9,6 +9,9 @@ export interface ScrapedData {
     source: string;
     success: boolean;
     duration?: number;
+    pagesScraped?: number;
+    urlsScraped?: string[];
+    totalItems?: number;
   };
 }
 
@@ -17,6 +20,9 @@ export interface ScraperConfig {
   baseUrl: string;
   selectors?: Record<string, string>; // Legacy selector-based approach
   extractionPrompt?: string; // AI-powered extraction prompt
+  navigationType?: 'button' | 'scroll' | 'none'; // Multi-page navigation type
+  navigationPrompt?: string; // How to navigate to next page
+  maxPages?: number; // Maximum pages to scrape (default: 2)
   headers?: Record<string, string>;
   timeout?: number;
 }

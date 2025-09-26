@@ -10,6 +10,10 @@
 1. **Proxy Support**: Implement proxy rotation and residential proxy support for production scraping
 2. **MCP Server**: Build Claude integration server for conversational data analysis
 
+## Backlog
+- Enable multi-page scraping: load a page, scrape it -> parse it -> store results, nav to next page, repeat, up to a "maxPages" number
+- Test with single-item pages, which should be able to return a single object with any stated fields (some of those fields may be arrays)
+
 ## Status Notes
 - ✅ Core scraping + storage functionality working end-to-end
 - ✅ AI-powered extraction with OpenAI API integration

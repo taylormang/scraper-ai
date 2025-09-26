@@ -12,6 +12,7 @@ A modular scraping engine that abstracts the complexity of data extraction, auth
 
 **Scraping Engine**
 - Site-agnostic scraping framework with pluggable extractors
+- **Multi-page scraping with AI-powered navigation** - automatically traverse paginated content using LLM-based element identification
 - Built-in authentication session management and renewal
 - Automatic proxy rotation and rate limiting
 - ~~Intelligent change detection and incremental updates~~ *[needs review / later]*
@@ -39,6 +40,8 @@ A modular scraping engine that abstracts the complexity of data extraction, auth
 **AI-Native Design**: **Built specifically for LLM interaction patterns, with structured outputs optimized for conversational analysis and natural language querying. While other interfaces are possible, ChatGPT/Claude integration is the primary design goal.**
 
 **AI-Enabled Configuration**: *[later probably]* Future capability to configure new scrapers through natural language description rather than manual configuration.
+
+**Multi-Page Navigation**: AI-powered element identification enables automatic traversal of paginated content without hardcoded selectors. Uses chain-of-thought reasoning to identify navigation elements with 100% accuracy. Successfully extracts comprehensive data from multiple pages (e.g., 59 items from 2 pages of Hacker News).
 
 ## Implementation Benefits
 

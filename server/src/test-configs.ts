@@ -11,11 +11,14 @@ export const testConfigs: Record<string, ScraperConfig> = {
     timeout: 10000
   },
 
-  // Example for a news site (not tested yet)
+  // Multi-page news site with navigation
   hackernews: {
     name: 'hackernews-scraper',
     baseUrl: 'https://news.ycombinator.com',
     extractionPrompt: 'Extract each article as an object with: title, link URL, points/score, author, and comment count. Return an array of article objects.',
+    navigationType: 'button',
+    navigationPrompt: 'click "More"',
+    maxPages: 2,
     headers: {
       'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
     },

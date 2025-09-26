@@ -121,7 +121,7 @@ export class PageNavigator {
             tagName: el.tagName.toLowerCase(),
             textContent: el.textContent?.trim().substring(0, 100) || '[no text]',
             innerText: (el as any).innerText?.trim().substring(0, 100) || '[no inner text]',
-            href: (el as any).href || '',
+            href: el.getAttribute('href') || '',
             id: el.id || '',
             className: el.className || '',
             outerHTML: el.outerHTML.substring(0, 300)
@@ -165,14 +165,45 @@ export class PageNavigator {
 
   private async clickBySelector(page: Page, selector: string): Promise<boolean> {
     try {
+      console.log(`🎯 Attempting to click selector: ${selector}`);
+
+      // Wait for element to be available
+      await page.waitForSelector(selector, { timeout: 5000 });
+
+      // Check if element exists and is visible
       const element = await page.$(selector);
-      if (element) {
-        await element.click();
-        return true;
+      if (!element) {
+        console.log(`❌ Element not found: ${selector}`);
+        return false;
       }
-      return false;
+
+      // Check if element is visible and clickable
+      const isVisible = await element.isIntersectingViewport();
+      if (!isVisible) {
+        console.log(`⚠️  Element not visible, scrolling into view: ${selector}`);
+        await element.scrollIntoView();
+        await new Promise(resolve => setTimeout(resolve, 500)); // Wait a bit after scrolling
+      }
+
+      // Try to click the element
+      await element.click();
+      console.log(`✅ Successfully clicked: ${selector}`);
+      return true;
+
     } catch (error) {
-      return false;
+      const errorMessage = error instanceof Error ? error.message : 'Unknown click error';
+      console.log(`❌ Click failed for ${selector}: ${errorMessage}`);
+
+      // Try alternative clicking method
+      try {
+        console.log(`🔄 Trying alternative click method for: ${selector}`);
+        await page.click(selector);
+        console.log(`✅ Alternative click succeeded: ${selector}`);
+        return true;
+      } catch (altError) {
+        console.log(`❌ Alternative click also failed: ${altError instanceof Error ? altError.message : 'Unknown error'}`);
+        return false;
+      }
     }
   }
 

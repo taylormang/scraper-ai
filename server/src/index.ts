@@ -19,7 +19,7 @@ async function runFullTest() {
   console.log('\n--- Full End-to-End Test ---');
 
   // Choose which config to test - change this to test different sites
-  const configName = 'hackernews'; // Options: 'quotes', 'hackernews', 'products'
+  const configName = 'quotes'; // Options: 'quotes', 'hackernews', 'products'
   const config = testConfigs[configName];
 
   if (!config) {

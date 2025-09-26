@@ -5,6 +5,8 @@ export const testConfigs: Record<string, ScraperConfig> = {
     name: 'quotes-scraper-ai',
     baseUrl: 'http://quotes.toscrape.com',
     extractionPrompt: 'Extract each quote as a separate object with: quote text, author name, and tags (as an array). Return an array of quote objects.',
+    navigationType: 'button',
+    navigationPrompt: 'click next button',
     headers: {
       'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
     },

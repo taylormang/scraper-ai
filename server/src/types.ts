@@ -15,9 +15,16 @@ export interface ScrapedData {
 export interface ScraperConfig {
   name: string;
   baseUrl: string;
-  selectors: Record<string, string>;
+  selectors?: Record<string, string>; // Legacy selector-based approach
+  extractionPrompt?: string; // AI-powered extraction prompt
   headers?: Record<string, string>;
   timeout?: number;
+}
+
+export interface AIExtractionResult {
+  success: boolean;
+  data?: any[];
+  error?: string;
 }
 
 export interface ScraperResult {

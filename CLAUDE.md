@@ -14,16 +14,27 @@ This is a **Dynamic Scraping & Data Management Engine** - a modular system desig
 
 ## Project Status
 
-This is an **early-stage/planning repository** with only documentation currently present:
+**IMPORTANT**: Always check `/PROGRESS.md` for current development status and next steps. This file tracks completed features and prevents losing context between Claude sessions.
+
+Basic TypeScript infrastructure exists:
 - `/docs/product_overview.md` - Contains the complete architectural vision and implementation strategy
-- No source code files exist yet
-- No build/test infrastructure has been established
+- `/server/src/` - Contains basic scraper, storage, and type definitions
+- Build/test infrastructure established
 
 ## Development Approach
 
 **Configuration Over Code**: New scrapers are added via configuration files rather than custom scripts. The system abstracts authentication flows, data mapping, and extraction logic into reusable components.
 
 **AI-Native Design**: Optimized for LLM interaction patterns with structured outputs designed for conversational analysis and natural language querying.
+
+## Progress Tracking Requirements
+
+**MANDATORY**: After completing ANY feature or significant work, you MUST update `/PROGRESS.md` with:
+- Last completed step
+- Current/next step
+- Next 2 planned steps
+
+This prevents losing context between Claude sessions and ensures continuous development progress.
 
 ## Key Design Principles
 

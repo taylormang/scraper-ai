@@ -42,3 +42,9 @@ This prevents losing context between Claude sessions and ensures continuous deve
 - Modular architecture allowing independent scaling of scraping, storage, and analysis
 - Built-in reliability with error handling, retry logic, and monitoring
 - Primary interface through MCP server for Claude integration
+
+## Buiding LLM-based Workflows
+
+Many features will be configured for natural language prompting by the user, including things like how to extract content from the page, or what button to click 
+
+**MANDATORY**: When building an LLM-powered workflow into the application, DO NOT use static, hard-coded fallback options unless EXPLICITLY told to do so. These will generally be useless, and should NEVER be configured solely to match some testing example.

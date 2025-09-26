@@ -2,6 +2,7 @@
 
 ## Last Completed Step
 - **AI-Powered Configuration System**: Implemented complete configuration-driven scraper system with AI extraction. Users can now describe what they want extracted in natural language instead of writing CSS selectors. Successfully tested with multiple sites (quotes.toscrape.com, Hacker News).
+- **Multi-page Scraping**: Using prompt-based descriptions of what button needs to be clicked to access the next page
 
 ## Current/Next Step
 - **Authentication Module**: Add session management, cookie persistence, and credential handling for sites requiring login
@@ -11,7 +12,6 @@
 2. **MCP Server**: Build Claude integration server for conversational data analysis
 
 ## Backlog
-- Enable multi-page scraping: load a page, scrape it -> parse it -> store results, nav to next page, repeat, up to a "maxPages" number
 - Test with single-item pages, which should be able to return a single object with any stated fields (some of those fields may be arrays)
 
 ## Status Notes

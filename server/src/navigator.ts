@@ -3,13 +3,16 @@ import { AIService } from './ai-service';
 import { PromptBuilder } from './prompt-builder';
 import { ContentProcessor } from './content-processor';
 import { ResultParser } from './result-parser';
+import { NavigationPatternCache } from './navigation-pattern-cache';
 
 export class PageNavigator {
   private browser?: Browser;
   private aiService: AIService;
+  private navigationCache: NavigationPatternCache;
 
   constructor(apiKey?: string) {
     this.aiService = new AIService(apiKey);
+    this.navigationCache = new NavigationPatternCache();
   }
 
   async initBrowser(): Promise<void> {
@@ -109,6 +112,27 @@ export class PageNavigator {
 
   private async findAndClickElement(page: Page, navigationPrompt: string): Promise<{ success: boolean; error?: string }> {
     try {
+      const currentUrl = page.url();
+      const domain = new URL(currentUrl).hostname;
+
+      // Step 1: Try cached navigation pattern first
+      console.log('🔍 Checking for cached navigation pattern...');
+      const cachedPattern = await this.navigationCache.getCachedPattern(page, domain, navigationPrompt);
+
+      if (cachedPattern) {
+        console.log(`⚡ Attempting cached navigation: ${cachedPattern.selector}`);
+        const cachedClickResult = await this.clickBySelector(page, cachedPattern.selector);
+
+        if (cachedClickResult) {
+          console.log('✅ Cached navigation pattern worked!');
+          return { success: true };
+        } else {
+          console.log('❌ Cached pattern failed, falling back to AI analysis...');
+          // Pattern failed, it will be removed from cache by the getCachedPattern method
+        }
+      }
+
+      // Step 2: Fall back to AI analysis
       console.log('🤖 Using AI to analyze page elements for navigation...');
 
       // Extract clickable elements using ContentProcessor
@@ -131,6 +155,10 @@ export class PageNavigator {
       // Click the element
       const clickResult = await this.clickBySelector(page, selector);
       if (clickResult) {
+        // Step 3: Cache the successful pattern for future use
+        console.log('💾 Caching successful navigation pattern...');
+        await this.navigationCache.storePattern(page, domain, navigationPrompt, selector);
+
         return { success: true };
       }
 
@@ -216,5 +244,26 @@ export class PageNavigator {
       console.log(`❌ AI selector determination failed: ${error}`);
       return null;
     }
+  }
+
+  /**
+   * Get navigation cache statistics
+   */
+  getCacheStats() {
+    return this.navigationCache.getCacheStats();
+  }
+
+  /**
+   * Clear the navigation cache (useful for testing)
+   */
+  clearNavigationCache(): void {
+    this.navigationCache.clearCache();
+  }
+
+  /**
+   * Clean up expired navigation patterns
+   */
+  cleanupExpiredPatterns(maxAgeInDays: number = 30): number {
+    return this.navigationCache.cleanupExpiredPatterns(maxAgeInDays);
   }
 }

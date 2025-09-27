@@ -167,6 +167,14 @@ export class BasicScraper {
         // The navigator handles clicking and getting the new content
       }
 
+      // Show navigation cache statistics
+      if (this.navigator) {
+        const cacheStats = this.navigator.getCacheStats();
+        if (cacheStats.totalPatterns > 0 || cacheStats.cacheHits > 0 || cacheStats.cacheMisses > 0) {
+          console.log(`📊 Navigation cache stats: ${cacheStats.cacheHits} hits, ${cacheStats.cacheMisses} misses (${(cacheStats.hitRate * 100).toFixed(1)}% hit rate), ${cacheStats.totalPatterns} patterns cached`);
+        }
+      }
+
       // Clean up navigator
       if (this.navigator) {
         await this.navigator.closeBrowser();

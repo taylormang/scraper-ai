@@ -11,18 +11,25 @@ The project is now positioned as an **AI-Native Web Intelligence Platform** - no
 - End User Experience: Conversational data gathering with zero technical friction
 
 ## Last Completed Step
-- **Product Vision Document**: Created comprehensive vision doc repositioning project as MCP-first conversational web intelligence platform with detailed architecture, user flows, and implementation roadmap
+- **API Server Foundation (Phase 1)**: Built Express-based API server with health/status endpoints, error handling middleware, CORS configuration, and comprehensive documentation. Server is production-ready for job queue integration (Phase 2).
 
 ## Current/Next Step
-- **MCP Server Foundation**: Build core MCP server with initial tool suite (`plan_scrape`, `execute_scrape`, `fetch_scraped_data`)
-- **Intent Parser**: Implement LLM-powered query understanding to convert natural language into scraping strategies
+- **Job Queue System (Phase 2)**: Add BullMQ + Redis for asynchronous job processing in API server
+- **Scrape Execution Endpoints (Phase 3)**: Implement REST API endpoints for scrape CRUD operations
 
 ## Next 2 Planned Steps
-1. **Conversation State Management**: Add context tracking across multi-turn conversations for follow-up queries
-2. **Firecrawl Integration**: Offload scraping infrastructure (IP handling, bot protection) to Firecrawl API
+1. **Scraping Engine Package**: Create `packages/scraping-engine` with Firecrawl integration for production scraping
+2. **MCP Server Tools**: Implement `plan_scrape` and `execute_scrape` tools to bridge conversational interface with API server
+
+## Infrastructure Completed (Phase 1)
+- ✅ **Monorepo Setup**: npm workspaces with apps/ and packages/ structure
+- ✅ **MCP Server**: Basic server with ping tool and Claude Desktop integration
+- ✅ **Web Application**: Next.js 14 dashboard with datasets, settings pages, and dark mode
+- ✅ **API Server**: Express REST API with health endpoints, error handling, and TypeScript
+- ✅ **Build Pipeline**: TypeScript compilation, hot reload, and type checking across all packages
+- ✅ **Documentation**: Product vision, technical architecture, and implementation tickets
 
 ## Technical Foundation (Already Built)
-- ✅ Core scraping + storage functionality working end-to-end
 - ✅ AI-powered extraction with OpenAI API integration
 - ✅ Configuration system for rapid site deployment (<5 minutes per new site)
 - ✅ Tested with multiple site types (quotes, news articles)
@@ -47,23 +54,14 @@ The project is now positioned as an **AI-Native Web Intelligence Platform** - no
 - **Authentication Module**: Add session management, cookie persistence, and credential handling for sites requiring login
 - **Monitoring System**: Scheduled scraping with change detection and alerting
 
-## Status Notes
-- ✅ Core scraping + storage functionality working end-to-end
-- ✅ AI-powered extraction with OpenAI API integration
-- ✅ Configuration system for rapid site deployment (<5 minutes per new site)
-- ✅ Tested with multiple site types (quotes, news articles)
-- ✅ No fallback extraction - proper error handling when misconfigured
-- ✅ **AI Infrastructure Refactoring Complete**: All AI patterns now use centralized, maintainable abstractions
-- ✅ **Rate Limiting**: Implemented centralized rate limiting for OpenAI API calls
-- ✅ **Template-Based Prompts**: All AI prompts now use standardized, reusable templates
-- ✅ **Centralized Content Processing**: HTML cleaning and element extraction unified
-- ✅ **Standardized Response Parsing**: Consistent parsing with proper error handling
-- ✅ **Auto-Generated Schema System**: Zero-config data consistency across multi-page scrapes
-- ✅ **Schema Discovery**: Automatic field type inference from first page extraction
-- ✅ **Schema Enforcement**: Type coercion and validation with graceful error handling
-- ✅ **Backwards Compatibility**: All existing configurations work unchanged with schema benefits
-- ✅ **Navigation Pattern Caching**: Intelligent caching for 80-90% faster repeat navigation
-- ✅ **Cache-First Strategy**: Try cached patterns before falling back to AI analysis
-- ✅ **Pattern Validation**: Self-healing cache removes invalid patterns automatically
-- ✅ **Performance Metrics**: Detailed hit/miss statistics and usage tracking
-- Next focus: Click-through extraction for detailed list item content
+## Development Status
+**Current Focus**: Building job queue system and scrape execution endpoints in API server
+
+**Latest Commit**: `0a36c02` - feat: add API server with Express and health endpoints
+
+**Available for Testing**:
+- MCP Server: `npm run dev` → Ping tool works in Claude Desktop
+- Web App: `npm run dev:web` → http://localhost:3000
+- API Server: `npm run dev:api` → http://localhost:3001/api/health
+
+See `/docs/tickets/api-server.md` for roadmap and implementation details.

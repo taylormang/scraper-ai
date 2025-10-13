@@ -8,6 +8,8 @@
   ],
   "scripts": {
     "dev": "npm run dev --workspace=apps/mcp-server",
+    "dev:web": "npm run dev --workspace=apps/web",
+    "dev:all": "npm run dev --workspaces --if-present",
     "build": "npm run build --workspaces --if-present",
     "clean": "npm run clean --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",

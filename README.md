@@ -28,7 +28,8 @@ This is a **monorepo** using npm workspaces:
 ```
 scraper/
 ├── apps/
-│   └── mcp-server/          # MCP server app (main entry point)
+│   ├── mcp-server/          # MCP server for conversational scraping
+│   └── web/                 # Web app for visual data management
 ├── packages/
 │   └── shared-types/        # Common TypeScript types
 ├── archive/                 # Old server code (reference only)
@@ -52,14 +53,25 @@ npm install
 npm run build
 ```
 
-### Running the MCP Server
+### Running the Applications
 
+**MCP Server** (for Claude Desktop integration):
 ```bash
 # Development mode (with hot reload)
 npm run dev
 
 # Production mode
 npm start -w apps/mcp-server
+```
+
+**Web Application** (visual dashboard):
+```bash
+# Run web app
+npm run dev:web
+# Access at http://localhost:3000
+
+# Run both MCP server and web app
+npm run dev:all
 ```
 
 ### Testing with Claude Desktop
@@ -86,12 +98,18 @@ Claude: 🏓 pong
 
 ## 🏗️ Architecture
 
-**MCP Server** - Main application that exposes tools to AI assistants:
+**MCP Server** (`apps/mcp-server`) - Conversational scraping via Claude:
 - `ping` - Test tool (currently implemented) ✅
 - `plan_scrape` - Convert natural language to scraping strategy (planned)
 - `execute_scrape` - Run scrapes with progress streaming (planned)
 - `fetch_scraped_data` - Query historical data (planned)
 - `create_monitor` - Set up change detection (planned)
+
+**Web App** (`apps/web`) - Visual data management dashboard:
+- 🏠 Dashboard with overview and quick stats
+- 📊 Datasets page for viewing scraped data
+- ⚙️ Settings for API keys and preferences
+- 🎨 Responsive design with dark mode
 
 **Packages** (to be added):
 - `orchestration` - Intent parsing and execution planning
@@ -111,8 +129,14 @@ Claude: 🏓 pong
 ### Workspace Commands
 
 ```bash
-# Run MCP server in dev mode
+# Run MCP server
 npm run dev
+
+# Run web app
+npm run dev:web
+
+# Run both apps
+npm run dev:all
 
 # Build all packages
 npm run build
@@ -122,6 +146,9 @@ npm run typecheck
 
 # Clean all build artifacts
 npm run clean
+
+# Format code
+npm run format
 
 # Add dependency to specific package
 npm install openai -w apps/mcp-server
@@ -141,6 +168,7 @@ npm install openai -w apps/mcp-server
 **Completed:**
 - ✅ Monorepo scaffolding with npm workspaces
 - ✅ Basic MCP server with ping tool
+- ✅ Web app with dashboard, datasets, and settings pages
 - ✅ TypeScript build pipeline
 - ✅ Product vision and technical architecture docs
 

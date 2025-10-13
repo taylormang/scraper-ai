@@ -6,6 +6,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is a **Dynamic Scraping & Data Management Engine** - a modular system designed for AI-native data analysis through conversational interfaces (primarily Claude/ChatGPT integration).
 
+Documentation: /docs
+Tickets: /docs/tickets
+Completed Tickets: /docs/tickets/done
+
 **Key Architecture Components:**
 
 1. **Scraping Engine**: Site-agnostic framework with pluggable extractors, authentication management, proxy rotation, and change detection

@@ -11,6 +11,8 @@ pnpm-debug.log*
 dist/
 build/
 *.tsbuildinfo
+.next/
+out/
 
 # TypeScript
 *.js.map

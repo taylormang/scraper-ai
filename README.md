@@ -29,6 +29,7 @@ This is a **monorepo** using npm workspaces:
 scraper/
 ├── apps/
 │   ├── mcp-server/          # MCP server for conversational scraping
+│   ├── api/                 # API server for scrape execution and background jobs
 │   └── web/                 # Web app for visual data management
 ├── packages/
 │   └── shared-types/        # Common TypeScript types
@@ -64,13 +65,23 @@ npm run dev
 npm start -w apps/mcp-server
 ```
 
+**API Server** (execution engine):
+```bash
+# Run API server
+npm run dev:api
+# Access at http://localhost:3001
+
+# Test health endpoint
+curl http://localhost:3001/api/health
+```
+
 **Web Application** (visual dashboard):
 ```bash
 # Run web app
 npm run dev:web
 # Access at http://localhost:3000
 
-# Run both MCP server and web app
+# Run all apps together
 npm run dev:all
 ```
 
@@ -105,6 +116,14 @@ Claude: 🏓 pong
 - `fetch_scraped_data` - Query historical data (planned)
 - `create_monitor` - Set up change detection (planned)
 
+**API Server** (`apps/api`) - Execution engine and background job processor:
+- ✅ Express REST API with TypeScript
+- ✅ Health check and system status endpoints
+- ✅ Error handling and request validation
+- ⬜ Job queue system (BullMQ + Redis)
+- ⬜ Scrape execution endpoints
+- ⬜ Database integration (Prisma + PostgreSQL)
+
 **Web App** (`apps/web`) - Visual data management dashboard:
 - 🏠 Dashboard with overview and quick stats
 - 📊 Datasets page for viewing scraped data
@@ -132,10 +151,13 @@ Claude: 🏓 pong
 # Run MCP server
 npm run dev
 
+# Run API server
+npm run dev:api
+
 # Run web app
 npm run dev:web
 
-# Run both apps
+# Run all apps
 npm run dev:all
 
 # Build all packages
@@ -151,7 +173,7 @@ npm run clean
 npm run format
 
 # Add dependency to specific package
-npm install openai -w apps/mcp-server
+npm install express -w apps/api
 ```
 
 ### Adding New Packages
@@ -163,20 +185,21 @@ npm install openai -w apps/mcp-server
 
 ### Project Status
 
-**Current Phase:** Phase 1 - MCP Server Foundation ✅
+**Current Phase:** Phase 1 - Core Infrastructure ✅
 
 **Completed:**
 - ✅ Monorepo scaffolding with npm workspaces
 - ✅ Basic MCP server with ping tool
 - ✅ Web app with dashboard, datasets, and settings pages
+- ✅ API server with Express, health endpoints, and error handling
 - ✅ TypeScript build pipeline
 - ✅ Product vision and technical architecture docs
 
 **Next Steps:**
-1. Implement `plan_scrape` tool with intent parsing
-2. Create `packages/orchestration` for LLM-powered query understanding
+1. Add job queue system to API server (BullMQ + Redis)
+2. Implement scrape execution endpoints
 3. Create `packages/scraping-engine` with Firecrawl integration
-4. Implement `execute_scrape` and data storage
+4. Implement `plan_scrape` tool with intent parsing
 
 See `/PROGRESS.md` for detailed status.
 

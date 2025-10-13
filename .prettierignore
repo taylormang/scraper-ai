@@ -1,0 +1,20 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+*.tsbuildinfo
+
+# Coverage
+coverage/
+
+# Data
+data/
+scraped-data/
+
+# Archive
+archive/
+
+# Logs
+*.log

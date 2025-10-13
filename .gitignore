@@ -3,31 +3,64 @@ node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
+.pnp
+.pnp.js
 
 # Build outputs
 dist/
 build/
+*.tsbuildinfo
+
+# TypeScript
+*.js.map
+*.d.ts.map
 
 # Environment variables
 .env
 .env.local
+.env.development
 .env.development.local
+.env.test
 .env.test.local
+.env.production
 .env.production.local
 
 # IDE/Editor files
-.vscode/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
 .idea/
 *.swp
 *.swo
+*~
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
 
 # OS files
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
+Desktop.ini
 
 # Logs
 logs/
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
 
 # Runtime data
 pids/
@@ -35,9 +68,59 @@ pids/
 *.seed
 *.pid.lock
 
-# Data files (for now, will be part of storage later)
-data/
-*.json
-
-# Coverage directory used by tools like istanbul
+# Testing
 coverage/
+*.lcov
+.nyc_output
+.grunt
+lib-cov
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Data files (scraped data - will be stored in DB later)
+data/
+scraped-data/
+*.scraped.json
+
+# Cache directories
+.cache/
+.parcel-cache/
+.npm
+.eslintcache
+.stylelintcache
+.node_repl_history
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# dotenv environment variable files
+.env
+.env.production
+
+# Turbo
+.turbo
+
+# Vercel
+.vercel
+
+# Playwright
+playwright-report/
+test-results/
+
+# MCP specific
+.mcp-cache/

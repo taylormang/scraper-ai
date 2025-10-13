@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { ApiResponse } from '../types/index.js';
 import { config } from '../config/index.js';
+import { checkDatabaseConnection } from '../db/index.js';
 
 const router = Router();
 
@@ -26,9 +27,12 @@ router.get('/health', (req: Request, res: Response) => {
 
 /**
  * GET /api/status
- * Detailed system status (for future expansion)
+ * Detailed system status with service health checks
  */
-router.get('/status', (req: Request, res: Response) => {
+router.get('/status', async (req: Request, res: Response) => {
+  // Check database connection
+  const dbHealthy = await checkDatabaseConnection();
+
   const response: ApiResponse = {
     success: true,
     data: {
@@ -39,9 +43,13 @@ router.get('/status', (req: Request, res: Response) => {
         pid: process.pid,
       },
       services: {
-        database: 'not_configured', // Will be updated when DB is added
-        redis: 'not_configured', // Will be updated when Redis is added
-        queue: 'not_configured', // Will be updated when queue is added
+        database: dbHealthy ? 'connected' : 'disconnected',
+        redis: 'not_configured', // Will be updated in Phase 2 (Job Queue)
+        queue: 'not_configured', // Will be updated in Phase 2 (Job Queue)
+      },
+      database: {
+        url: config.database.url ? 'configured' : 'not_configured',
+        connected: dbHealthy,
       },
     },
     timestamp: new Date().toISOString(),

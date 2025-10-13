@@ -43,6 +43,7 @@ scraper/
 
 - Node.js 20+
 - npm 10+
+- Docker & Docker Compose (for databases)
 
 ### Installation
 
@@ -53,6 +54,21 @@ npm install
 # Build all packages
 npm run build
 ```
+
+### Database Setup
+
+```bash
+# Start PostgreSQL + Redis
+docker compose up -d
+
+# Generate and apply database migrations
+npm run db:push -w apps/api
+
+# Verify database connection
+curl http://localhost:3001/api/status
+```
+
+See [Database Setup Guide](/docs/DATABASE_SETUP.md) for detailed instructions on local, VPS, and production deployment.
 
 ### Running the Applications
 
@@ -120,9 +136,10 @@ Claude: 🏓 pong
 - ✅ Express REST API with TypeScript
 - ✅ Health check and system status endpoints
 - ✅ Error handling and request validation
+- ✅ PostgreSQL database with Drizzle ORM
+- ✅ Database schema (scrapes, jobs, datasets)
 - ⬜ Job queue system (BullMQ + Redis)
 - ⬜ Scrape execution endpoints
-- ⬜ Database integration (Prisma + PostgreSQL)
 
 **Web App** (`apps/web`) - Visual data management dashboard:
 - 🏠 Dashboard with overview and quick stats
@@ -140,8 +157,9 @@ Claude: 🏓 pong
 
 - [Product Vision](/docs/product_vision.md) - Complete product overview
 - [Technical Architecture](/docs/technical_architecture.md) - Implementation details
+- [Database Setup](/docs/DATABASE_SETUP.md) - PostgreSQL + Redis setup guide
 - [Progress Tracking](/PROGRESS.md) - Current status and next steps
-- [Tickets](/docs/tickets/) - Implementation tasks
+- [GitHub Issues](https://github.com/taylormang/scraper-ai/issues) - Tracked tasks and features
 
 ## 🛠️ Development
 
@@ -192,16 +210,20 @@ npm install express -w apps/api
 - ✅ Basic MCP server with ping tool
 - ✅ Web app with dashboard, datasets, and settings pages
 - ✅ API server with Express, health endpoints, and error handling
+- ✅ PostgreSQL database with Drizzle ORM
+- ✅ Database schema (scrapes, jobs, datasets)
+- ✅ Docker Compose for local development
 - ✅ TypeScript build pipeline
 - ✅ Product vision and technical architecture docs
+- ✅ GitHub issues for project management
 
 **Next Steps:**
-1. Add job queue system to API server (BullMQ + Redis)
-2. Implement scrape execution endpoints
-3. Create `packages/scraping-engine` with Firecrawl integration
+1. Add job queue system to API server (BullMQ + Redis) - [#1](https://github.com/taylormang/scraper-ai/issues/1)
+2. Implement scrape execution endpoints - [#2](https://github.com/taylormang/scraper-ai/issues/2)
+3. Create `packages/scraping-engine` with Firecrawl integration - [#5](https://github.com/taylormang/scraper-ai/issues/5)
 4. Implement `plan_scrape` tool with intent parsing
 
-See `/PROGRESS.md` for detailed status.
+See [/PROGRESS.md](/PROGRESS.md) for detailed status and [GitHub Issues](https://github.com/taylormang/scraper-ai/issues) for tracked tasks.
 
 ## 📝 License
 

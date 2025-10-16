@@ -25,6 +25,10 @@ export type { Scrape, NewScrape, Job, NewJob, Dataset, NewDataset } from './sche
 // Health check function
 export async function checkDatabaseConnection(): Promise<boolean> {
   try {
+    if (!config.database.url) {
+      // SQLite mode does not maintain a network connection to verify.
+      return true;
+    }
     // Simple query to check connection
     await queryClient`SELECT 1`;
     return true;

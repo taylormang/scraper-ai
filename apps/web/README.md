@@ -8,8 +8,10 @@ Modern web interface built with Next.js 14 that provides a visual dashboard for 
 
 ## Features
 
-**Current:**
+ **Current:**
 - 🏠 Dashboard home page with overview
+- 🕸️ Scrapes history and detail pages with live API + JSON output
+- 🚀 Homepage action to trigger new scrapes with optional JSON prompt
 - 📊 Datasets page for viewing scraped data
 - ⚙️ Settings page for configuration
 - 🎨 Responsive design with Tailwind CSS
@@ -72,6 +74,7 @@ apps/web/
 │   │   ├── page.tsx      # Home page
 │   │   ├── layout.tsx    # Root layout with navigation
 │   │   ├── globals.css   # Global styles
+│   │   ├── scrapes/      # Scrape history page
 │   │   ├── datasets/     # Datasets page
 │   │   └── settings/     # Settings page
 │   ├── components/       # React components
@@ -113,10 +116,13 @@ The web app imports shared TypeScript types from `@scraper/shared-types` for con
 ## Pages
 
 ### Home (`/`)
-Dashboard overview with quick stats and navigation cards.
+Dashboard overview with quick stats, navigation cards, and a form to kick off new scrapes through the API.
 
 ### Datasets (`/datasets`)
 List and manage scraped datasets. Currently shows empty state with getting started guide.
+
+### Scrapes (`/scrapes`)
+Fetches scrape history from the API and renders status, prompts, and timestamps. Each row links to a detail view with raw HTML/Markdown plus any structured JSON captured via the prompt.
 
 ### Settings (`/settings`)
 Configure API keys and scraping preferences. Currently read-only with placeholders for environment variable configuration.
@@ -142,9 +148,8 @@ Utility-first CSS with dark mode support. See `tailwind.config.ts` for configura
 Create `.env.local` in `apps/web/` for environment-specific configuration:
 
 ```env
-# Example (future use)
-NEXT_PUBLIC_API_URL=http://localhost:3000/api
-DATABASE_URL=postgresql://...
+# API base used by the scrapes page (falls back to http://localhost:3001)
+NEXT_PUBLIC_API_BASE_URL=http://localhost:3001
 ```
 
 ## Deployment

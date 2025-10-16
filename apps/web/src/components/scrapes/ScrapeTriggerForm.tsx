@@ -1,0 +1,153 @@
+'use client';
+
+import Link from 'next/link';
+import { useState, type FormEvent } from 'react';
+import { getApiBaseUrl } from '@/lib/config';
+import type { ApiResponse, ScrapeResultPayload } from '@/types/scrape';
+
+type FormState = 'idle' | 'submitting' | 'success' | 'error';
+
+export function ScrapeTriggerForm() {
+  const [url, setUrl] = useState('https://example.com');
+  const [prompt, setPrompt] = useState('');
+  const [state, setState] = useState<FormState>('idle');
+  const [message, setMessage] = useState<string | null>(null);
+  const [scrapeId, setScrapeId] = useState<string | null>(null);
+
+  async function triggerScrape(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setMessage(null);
+    setScrapeId(null);
+
+    if (!url.trim()) {
+      setState('error');
+      setMessage('Please enter a URL to scrape.');
+      return;
+    }
+
+    try {
+      setState('submitting');
+      const baseUrl = getApiBaseUrl();
+      const trimmedPrompt = prompt.trim();
+      const response = await fetch(`${baseUrl}/api/scrapes`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          url,
+          ...(trimmedPrompt ? { prompt: trimmedPrompt } : {}),
+        }),
+      });
+
+      const json = (await response.json()) as ApiResponse<ScrapeResultPayload>;
+
+      if (!response.ok || !json.success || !json.data) {
+        const errorMessage =
+          json.error?.message || `Failed to start scrape (status ${response.status})`;
+        throw new Error(errorMessage);
+      }
+
+      setState('success');
+      setScrapeId(json.data.id);
+      setMessage('Scrape started successfully. Check the scrapes page for JSON and markdown outputs.');
+      setUrl('https://example.com');
+      setPrompt('');
+    } catch (error) {
+      console.error('[ScrapeTriggerForm] Failed to trigger scrape', error);
+      setState('error');
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : 'Unable to trigger scrape right now. Please try again shortly.'
+      );
+    }
+  }
+
+  const isSubmitting = state === 'submitting';
+
+  return (
+    <section className="w-full max-w-3xl mx-auto">
+      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-sm p-6 md:p-8">
+        <h2 className="text-2xl font-semibold mb-2 text-gray-900 dark:text-gray-100">
+          Trigger a New Scrape
+        </h2>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+          Provide a URL and the API will scrape it using the configured Firecrawl integration.
+          Results appear in the Scrapes page.
+        </p>
+
+        <form className="space-y-6" onSubmit={triggerScrape}>
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              URL to scrape
+            </label>
+            <input
+              type="url"
+              required
+              value={url}
+              onChange={(event) => setUrl(event.target.value)}
+              placeholder="https://example.com"
+              className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 px-4 py-3 text-sm text-gray-900 dark:text-gray-100 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              JSON extraction prompt (optional)
+            </label>
+            <textarea
+              value={prompt}
+              onChange={(event) => setPrompt(event.target.value)}
+              rows={4}
+              placeholder="Describe the structured data you want to extract from the page..."
+              className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 px-4 py-3 text-sm text-gray-900 dark:text-gray-100 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              We&apos;ll pass this prompt to Firecrawl&apos;s JSON mode and include the structured result in the scrape details.
+            </p>
+          </div>
+
+          <div className="flex flex-col md:flex-row gap-3 md:items-center">
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="inline-flex items-center justify-center rounded-lg bg-blue-600 text-white px-5 py-3 text-sm font-semibold shadow-sm hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed transition-colors"
+            >
+              {isSubmitting ? 'Submitting…' : 'Start Scrape'}
+            </button>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Need inspiration? Try “Extract the main heading and the first three links with their text.”
+            </p>
+          </div>
+        </form>
+
+        {message && (
+          <div
+            className={`mt-4 rounded-lg border px-4 py-3 text-sm ${
+              state === 'success'
+                ? 'bg-green-50 border-green-200 text-green-700 dark:bg-green-500/10 dark:border-green-900 dark:text-green-300'
+                : 'bg-red-50 border-red-200 text-red-700 dark:bg-red-500/10 dark:border-red-900 dark:text-red-300'
+            }`}
+          >
+            <p>{message}</p>
+            {state === 'success' && scrapeId && (
+              <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
+                <span className="font-medium">Scrape ID:</span>
+                <code className="px-2 py-1 bg-white/60 dark:bg-black/20 rounded">
+                  {scrapeId}
+                </code>
+                <Link
+                  href={`/scrapes/${scrapeId}`}
+                  className="inline-flex items-center text-blue-700 dark:text-blue-300 hover:underline"
+                >
+                  View details →
+                </Link>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}

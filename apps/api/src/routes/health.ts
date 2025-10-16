@@ -43,11 +43,14 @@ router.get('/status', async (req: Request, res: Response) => {
         pid: process.pid,
       },
       services: {
-        database: dbHealthy ? 'connected' : 'disconnected',
+        database: dbHealthy
+          ? (config.database.url ? 'connected' : 'ready (sqlite)')
+          : 'disconnected',
         redis: 'not_configured', // Will be updated in Phase 2 (Job Queue)
         queue: 'not_configured', // Will be updated in Phase 2 (Job Queue)
       },
       database: {
+        mode: config.database.url ? 'postgresql' : 'sqlite',
         url: config.database.url ? 'configured' : 'not_configured',
         connected: dbHealthy,
       },

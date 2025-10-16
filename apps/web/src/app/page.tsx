@@ -1,6 +1,8 @@
+import { ScrapeTriggerForm } from '@/components/scrapes/ScrapeTriggerForm';
+
 export default function Home() {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-24">
+    <main className="flex min-h-screen flex-col items-center justify-start gap-16 px-6 py-20 md:px-10 lg:px-16 bg-gray-50 dark:bg-gray-950">
       <div className="max-w-5xl w-full text-center">
         <h1 className="text-6xl font-bold mb-4 bg-gradient-to-r from-blue-600 to-purple-600 text-transparent bg-clip-text">
           Scraper
@@ -41,6 +43,8 @@ export default function Home() {
           <p className="mt-1">Next: Implement plan_scrape tool with intent parsing</p>
         </div>
       </div>
+
+      <ScrapeTriggerForm />
     </main>
   );
 }

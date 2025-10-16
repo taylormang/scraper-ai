@@ -13,6 +13,12 @@ export function Navigation() {
               🌐 Scraper
             </Link>
             <Link
+              href="/scrapes"
+              className="flex items-center text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+            >
+              Scrapes
+            </Link>
+            <Link
               href="/datasets"
               className="flex items-center text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
             >

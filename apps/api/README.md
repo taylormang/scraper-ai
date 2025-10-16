@@ -62,19 +62,34 @@ Edit `.env` with your configuration:
 PORT=3001
 NODE_ENV=development
 CORS_ORIGIN=http://localhost:3000
+# DATABASE_URL=postgresql://postgres:devpassword@localhost:5432/scraper_dev
+# DATABASE_SQLITE_PATH=data/scraper.sqlite
+# FIRECRAWL_API_KEY=your_firecrawl_key
 ```
+
+### Persistent Storage
+
+By default the API now persists scrape history to a lightweight SQLite database stored at `data/scraper.sqlite` relative to the repository root. No external service is required for development.
+
+- Set `DATABASE_SQLITE_PATH` if you want the `.sqlite` file somewhere else (e.g. a mounted volume).
+- Provide `DATABASE_URL` to switch back to the existing PostgreSQL + Drizzle configuration.
 
 ### Development
 
 ```bash
-# Run API server only
+# Run all apps together (recommended - shows all logs with prefixes)
+npm run dev:all
+
+# Or run API server only
 npm run dev -w apps/api
 
-# From apps/api directory
+# Or from apps/api directory
 npm run dev
 ```
 
 Server will start at [http://localhost:3001](http://localhost:3001)
+
+**Tip**: Use `npm run dev:all` from the repo root to run both API and Web servers with colored, prefixed logs!
 
 ### Build
 
@@ -115,6 +130,9 @@ apps/api/
 GET  /                        # API information
 GET  /api/health              # Health check
 GET  /api/status              # Detailed system status
+POST /api/scrapes             # Trigger a scrape (markdown, HTML, optional JSON)
+GET  /api/scrapes             # List scrape history
+GET  /api/scrapes/:id         # Retrieve scrape details
 ```
 
 ### Example Responses
@@ -133,6 +151,19 @@ GET  /api/status              # Detailed system status
   "timestamp": "2025-10-13T10:00:00.000Z"
 }
 ```
+
+### Structured Extraction
+
+`POST /api/scrapes` accepts an optional `prompt` string. When supplied, the API forwards it to Firecrawl's JSON extraction mode and persists the resulting structured payload alongside markdown/HTML output.
+
+```jsonc
+{
+  "url": "https://example.com",
+  "prompt": "Extract the main heading and the first three links with their labels."
+}
+```
+
+The response includes a `structuredData` field under `results`, containing the parsed JSON object if Firecrawl returned one.
 
 **System Status:**
 ```json

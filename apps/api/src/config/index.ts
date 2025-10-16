@@ -13,6 +13,7 @@ const envSchema = z.object({
   REDIS_PORT: z.string().optional(),
   REDIS_PASSWORD: z.string().optional(),
   DATABASE_URL: z.string().optional(),
+  DATABASE_SQLITE_PATH: z.string().optional(),
   FIRECRAWL_API_KEY: z.string().optional(),
   OPENAI_API_KEY: z.string().optional(),
 });
@@ -32,6 +33,7 @@ export const config = {
   },
   database: {
     url: env.DATABASE_URL,
+    sqlitePath: env.DATABASE_SQLITE_PATH || 'data/scraper.sqlite',
   },
   services: {
     firecrawl: env.FIRECRAWL_API_KEY,

@@ -14,6 +14,9 @@ import {
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 
+// Configuration
+const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost:3001';
+
 /**
  * Create and configure the MCP server
  */
@@ -31,7 +34,6 @@ const server = new Server(
 
 /**
  * List available tools
- * Currently implements a simple 'ping' tool for testing
  */
 server.setRequestHandler(ListToolsRequestSchema, async () => {
   return {
@@ -47,6 +49,20 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
               description: 'Optional message to echo back',
             },
           },
+        },
+      },
+      {
+        name: 'scrape_url',
+        description: 'Scrape a URL and return its content as markdown and HTML. Perfect for extracting content from any webpage.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            url: {
+              type: 'string',
+              description: 'The URL to scrape (must be a valid HTTP/HTTPS URL)',
+            },
+          },
+          required: ['url'],
         },
       },
     ],
@@ -70,6 +86,61 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           },
         ],
       };
+    }
+
+    case 'scrape_url': {
+      const url = args?.url as string;
+
+      if (!url) {
+        throw new Error('URL is required');
+      }
+
+      try {
+        // Call the API server to scrape the URL
+        const response = await fetch(`${API_BASE_URL}/api/scrapes`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ url }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' })) as any;
+          throw new Error(`API error: ${errorData.error?.message || response.statusText}`);
+        }
+
+        const result = await response.json() as any;
+        const data = result.data;
+
+        // Format the response for Claude
+        const responseText = [
+          `Successfully scraped: ${url}`,
+          ``,
+          `**Title**: ${data.metadata?.title || 'N/A'}`,
+          `**Language**: ${data.metadata?.language || 'N/A'}`,
+          `**Duration**: ${data.duration}ms`,
+          ``,
+          `**Content (Markdown)**:`,
+          `\`\`\`markdown`,
+          data.markdown.substring(0, 2000) + (data.markdown.length > 2000 ? '...' : ''),
+          `\`\`\``,
+        ].join('\n');
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: responseText,
+            },
+          ],
+        };
+      } catch (error) {
+        console.error('[MCP] Scrape error:', error);
+        throw new Error(
+          `Failed to scrape URL: ${error instanceof Error ? error.message : 'Unknown error'}`
+        );
+      }
     }
 
     default:

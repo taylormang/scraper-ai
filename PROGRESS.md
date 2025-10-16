@@ -11,21 +11,27 @@ The project is now positioned as an **AI-Native Web Intelligence Platform** - no
 - End User Experience: Conversational data gathering with zero technical friction
 
 ## Last Completed Step
-- **API Server Foundation (Phase 1)**: Built Express-based API server with health/status endpoints, error handling middleware, CORS configuration, and comprehensive documentation. Server is production-ready for job queue integration (Phase 2).
+- **Development Tooling**: Set up `concurrently` for running all apps together with colored, prefixed logs (`npm run dev:all`). Updated all documentation (PROGRESS.md, README.md, CLAUDE.md, API README).
 
 ## Current/Next Step
-- **Job Queue System (Phase 2)**: Add BullMQ + Redis for asynchronous job processing in API server
-- **Scrape Execution Endpoints (Phase 3)**: Implement REST API endpoints for scrape CRUD operations
+- **Data Persistence**: Store scrape results in PostgreSQL database with Drizzle ORM
+  - Add database models for scrapes/runs
+  - Record each scrape execution
+  - Store results with metadata
+  - Create basic query endpoints
 
 ## Next 2 Planned Steps
-1. **Scraping Engine Package**: Create `packages/scraping-engine` with Firecrawl integration for production scraping
-2. **MCP Server Tools**: Implement `plan_scrape` and `execute_scrape` tools to bridge conversational interface with API server
+1. **Database Models & Recording**: Create Drizzle schema for scrape runs, store each execution with results and metadata
+2. **Query Endpoints**: Add GET endpoints to retrieve scrape history and results
 
 ## Infrastructure Completed (Phase 1)
 - ✅ **Monorepo Setup**: npm workspaces with apps/ and packages/ structure
-- ✅ **MCP Server**: Basic server with ping tool and Claude Desktop integration
+- ✅ **MCP Server**: Full integration with `scrape_url` tool calling API server
 - ✅ **Web Application**: Next.js 14 dashboard with datasets, settings pages, and dark mode
 - ✅ **API Server**: Express REST API with health endpoints, error handling, and TypeScript
+- ✅ **Scraping Engine**: Firecrawl integration with POST `/api/scrapes` endpoint (functional and tested)
+- ✅ **End-to-End Flow**: Claude Desktop → MCP → API → Firecrawl → Results (working!)
+- ✅ **Development Tooling**: `npm run dev:all` with concurrently for colored, prefixed logs
 - ✅ **Build Pipeline**: TypeScript compilation, hot reload, and type checking across all packages
 - ✅ **Documentation**: Product vision, technical architecture, and implementation tickets
 
@@ -55,13 +61,41 @@ The project is now positioned as an **AI-Native Web Intelligence Platform** - no
 - **Monitoring System**: Scheduled scraping with change detection and alerting
 
 ## Development Status
-**Current Focus**: Building job queue system and scrape execution endpoints in API server
+**Current Focus**: Data persistence and advanced scraping features
 
-**Latest Commit**: `0a36c02` - feat: add API server with Express and health endpoints
+**Latest Feature**: Full MCP integration! You can now scrape any webpage through Claude Desktop using natural language.
 
 **Available for Testing**:
-- MCP Server: `npm run dev` → Ping tool works in Claude Desktop
-- Web App: `npm run dev:web` → http://localhost:3000
-- API Server: `npm run dev:api` → http://localhost:3001/api/health
+- **All Apps Together**: `npm run dev:all` → Runs API + Web with prefixed logs
+- **MCP Server**: Configured in Claude Desktop with `scrape_url` tool
+- **API Server**: `npm run dev:api` → http://localhost:3001
+  - GET `/api/health` - Health check
+  - POST `/api/scrapes` - Scrape any URL (requires FIRECRAWL_API_KEY)
+  - GET `/api/scrapes/health` - Check scraper configuration
+- **Web App**: `npm run dev:web` → http://localhost:3000
+
+**How to Use**:
+
+1. **Start the servers**:
+   ```bash
+   npm run dev:all  # Runs API + Web with colored, prefixed logs
+   ```
+
+2. **Via Claude Desktop** (natural language):
+   - In Claude Desktop, just ask: "Can you scrape https://example.com for me?"
+   - Claude will use the `scrape_url` tool automatically
+
+3. **Via API** (direct):
+   ```bash
+   curl -X POST http://localhost:3001/api/scrapes \
+     -H "Content-Type: application/json" \
+     -d '{"url": "https://example.com"}'
+   ```
+
+**What Works**:
+- ✅ Scrape any public URL
+- ✅ Returns markdown + HTML content
+- ✅ Metadata extraction (title, description, language)
+- ✅ Full integration: Claude Desktop → MCP → API → Firecrawl
 
 See `/docs/tickets/api-server.md` for roadmap and implementation details.

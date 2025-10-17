@@ -133,6 +133,8 @@ GET  /api/status              # Detailed system status
 POST /api/scrapes             # Trigger a scrape (markdown, HTML, optional JSON)
 GET  /api/scrapes             # List scrape history
 GET  /api/scrapes/:id         # Retrieve scrape details
+POST /api/planner             # Translate natural-language prompt into scrape plan
+GET  /api/traces              # List recorded LLM traces (most recent first)
 ```
 
 ### Example Responses
@@ -164,6 +166,24 @@ GET  /api/scrapes/:id         # Retrieve scrape details
 ```
 
 The response includes a `structuredData` field under `results`, containing the parsed JSON object if Firecrawl returned one.
+
+### Pagination
+
+Set the optional `pagination` object to let Firecrawl follow “next” links with its v2 crawler. Omit this block to scrape a single page.
+
+```jsonc
+{
+  "url": "https://example.com/products",
+  "pagination": {
+    "autoPaginate": true,
+    "maxPages": 5,
+    "maxResults": 50,
+    "maxWaitTime": 15
+  }
+}
+```
+
+When pagination is enabled the scrape result includes a `pages` array exposing the raw output for each page (markdown, HTML, JSON). The first page remains in the top-level fields for backwards compatibility.
 
 **System Status:**
 ```json

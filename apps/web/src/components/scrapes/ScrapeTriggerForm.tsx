@@ -10,9 +10,49 @@ type FormState = 'idle' | 'submitting' | 'success' | 'error';
 export function ScrapeTriggerForm() {
   const [url, setUrl] = useState('https://example.com');
   const [prompt, setPrompt] = useState('');
+  const [autoPaginate, setAutoPaginate] = useState(true);
+  const [maxPages, setMaxPages] = useState('');
+  const [maxResults, setMaxResults] = useState('');
+  const [maxWaitTime, setMaxWaitTime] = useState('');
   const [state, setState] = useState<FormState>('idle');
   const [message, setMessage] = useState<string | null>(null);
   const [scrapeId, setScrapeId] = useState<string | null>(null);
+
+  const parsePositiveInt = (value: string, label: string): number | null => {
+    if (!value) return null;
+    const parsed = Number.parseInt(value, 10);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      throw new Error(`${label} must be a positive integer.`);
+    }
+    return parsed;
+  };
+
+  const buildPaginationPayload = (): Record<string, number | boolean> | null => {
+    const payload: Record<string, number | boolean> = {};
+    let shouldInclude = false;
+
+    if (!autoPaginate) {
+      payload.autoPaginate = false;
+      shouldInclude = true;
+    }
+
+    if (maxPages) {
+      payload.maxPages = parsePositiveInt(maxPages, 'Max pages')!;
+      shouldInclude = true;
+    }
+
+    if (maxResults) {
+      payload.maxResults = parsePositiveInt(maxResults, 'Max results')!;
+      shouldInclude = true;
+    }
+
+    if (maxWaitTime) {
+      payload.maxWaitTime = parsePositiveInt(maxWaitTime, 'Max wait time')!;
+      shouldInclude = true;
+    }
+
+    return shouldInclude ? payload : null;
+  };
 
   async function triggerScrape(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -29,15 +69,24 @@ export function ScrapeTriggerForm() {
       setState('submitting');
       const baseUrl = getApiBaseUrl();
       const trimmedPrompt = prompt.trim();
+      const paginationPayload = buildPaginationPayload();
+
+      const body: Record<string, unknown> = { url };
+
+      if (trimmedPrompt) {
+        body.prompt = trimmedPrompt;
+      }
+
+      if (paginationPayload) {
+        body.pagination = paginationPayload;
+      }
+
       const response = await fetch(`${baseUrl}/api/scrapes`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          url,
-          ...(trimmedPrompt ? { prompt: trimmedPrompt } : {}),
-        }),
+        body: JSON.stringify(body),
       });
 
       const json = (await response.json()) as ApiResponse<ScrapeResultPayload>;
@@ -53,6 +102,10 @@ export function ScrapeTriggerForm() {
       setMessage('Scrape started successfully. Check the scrapes page for JSON and markdown outputs.');
       setUrl('https://example.com');
       setPrompt('');
+      setAutoPaginate(true);
+      setMaxPages('');
+      setMaxResults('');
+      setMaxWaitTime('');
     } catch (error) {
       console.error('[ScrapeTriggerForm] Failed to trigger scrape', error);
       setState('error');
@@ -106,6 +159,65 @@ export function ScrapeTriggerForm() {
             <p className="text-xs text-gray-500 dark:text-gray-400">
               We&apos;ll pass this prompt to Firecrawl&apos;s JSON mode and include the structured result in the scrape details.
             </p>
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <input
+                id="autoPaginate"
+                type="checkbox"
+                checked={autoPaginate}
+                onChange={(event) => setAutoPaginate(event.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <label htmlFor="autoPaginate" className="text-sm text-gray-700 dark:text-gray-300">
+                Auto paginate
+              </label>
+            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Configure Firecrawl to follow “next page” links. Leave fields blank to keep defaults.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <label className="flex flex-col space-y-1">
+                <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                  Max pages
+                </span>
+                <input
+                  type="number"
+                  min="1"
+                  value={maxPages}
+                  onChange={(event) => setMaxPages(event.target.value)}
+                  placeholder="e.g. 3"
+                  className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </label>
+              <label className="flex flex-col space-y-1">
+                <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                  Max results
+                </span>
+                <input
+                  type="number"
+                  min="1"
+                  value={maxResults}
+                  onChange={(event) => setMaxResults(event.target.value)}
+                  placeholder="e.g. 10"
+                  className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </label>
+              <label className="flex flex-col space-y-1">
+                <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                  Max wait (sec)
+                </span>
+                <input
+                  type="number"
+                  min="1"
+                  value={maxWaitTime}
+                  onChange={(event) => setMaxWaitTime(event.target.value)}
+                  placeholder="e.g. 15"
+                  className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </label>
+            </div>
           </div>
 
           <div className="flex flex-col md:flex-row gap-3 md:items-center">

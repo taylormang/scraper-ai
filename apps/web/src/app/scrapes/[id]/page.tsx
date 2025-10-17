@@ -109,6 +109,8 @@ export default async function ScrapeDetailPage({ params }: ScrapeDetailParams) {
     results?.structuredData !== undefined
       ? JSON.stringify(results.structuredData, null, 2)
       : null;
+  const pages = results?.pages ?? [];
+  const pagination = scrape.config?.pagination;
 
   return (
     <main className="min-h-screen p-8 bg-gray-50 dark:bg-gray-950">
@@ -167,6 +169,36 @@ export default async function ScrapeDetailPage({ params }: ScrapeDetailParams) {
                 </dd>
               </div>
             )}
+            {pages.length > 0 && (
+              <div>
+                <dt className="font-medium text-gray-900 dark:text-gray-200">
+                  Pages Captured
+                </dt>
+                <dd className="mt-1">{pages.length}</dd>
+              </div>
+            )}
+            {pagination && (
+              <div>
+                <dt className="font-medium text-gray-900 dark:text-gray-200">
+                  Pagination Settings
+                </dt>
+                <dd className="mt-1 text-sm text-gray-600 dark:text-gray-400 space-x-3">
+                  <span>
+                    mode:{' '}
+                    {pagination.autoPaginate === false ? 'manual (api returns next cursor)' : 'auto'}
+                  </span>
+                  {pagination.maxPages !== undefined && (
+                    <span>maxPages: {pagination.maxPages}</span>
+                  )}
+                  {pagination.maxResults !== undefined && (
+                    <span>maxResults: {pagination.maxResults}</span>
+                  )}
+                  {pagination.maxWaitTime !== undefined && (
+                    <span>maxWait: {pagination.maxWaitTime}s</span>
+                  )}
+                </dd>
+              </div>
+            )}
             <div>
               <dt className="font-medium text-gray-900 dark:text-gray-200">
                 Created
@@ -204,6 +236,82 @@ export default async function ScrapeDetailPage({ params }: ScrapeDetailParams) {
             </div>
           )}
         </div>
+
+        {pages.length > 0 && (
+          <section className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-sm">
+            <header className="px-6 py-4 border-b border-gray-200 dark:border-gray-800">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                Paginated Pages
+              </h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Firecrawl returned {pages.length} page{pages.length === 1 ? '' : 's'} for this scrape. Expand a page to explore its raw output.
+              </p>
+            </header>
+            <div className="divide-y divide-gray-200 dark:divide-gray-800">
+              {pages.map((page) => {
+                const pageStructured = page.structuredData
+                  ? JSON.stringify(page.structuredData, null, 2)
+                  : null;
+
+                return (
+                  <details
+                    key={page.index}
+                    className="px-6 py-4 open:bg-gray-50/60 dark:open:bg-gray-800/30 transition-colors"
+                  >
+                    <summary className="cursor-pointer text-sm font-medium text-gray-700 dark:text-gray-200">
+                      Page {page.index + 1}{' '}
+                      <span className="font-normal text-gray-500 dark:text-gray-400">
+                        {page.url || '(no URL reported)'}
+                      </span>
+                    </summary>
+                    <div className="mt-4 space-y-6 text-sm">
+                      {page.metadata?.title && (
+                        <div>
+                          <h3 className="font-semibold text-gray-900 dark:text-gray-100">
+                            Title
+                          </h3>
+                          <p className="mt-1 text-gray-600 dark:text-gray-400">
+                            {page.metadata.title}
+                          </p>
+                        </div>
+                      )}
+                      {pageStructured && (
+                        <div>
+                          <h3 className="font-semibold text-gray-900 dark:text-gray-100">
+                            Structured JSON
+                          </h3>
+                          <pre className="mt-2 overflow-x-auto whitespace-pre-wrap rounded-lg bg-gray-900/90 text-gray-100 px-4 py-3 text-xs">
+{pageStructured}
+                          </pre>
+                        </div>
+                      )}
+                      {page.markdown && (
+                        <div>
+                          <h3 className="font-semibold text-gray-900 dark:text-gray-100">
+                            Markdown
+                          </h3>
+                          <pre className="mt-2 overflow-x-auto whitespace-pre-wrap rounded-lg bg-gray-50 dark:bg-gray-950 px-4 py-3">
+{page.markdown}
+                          </pre>
+                        </div>
+                      )}
+                      {page.html && (
+                        <div>
+                          <h3 className="font-semibold text-gray-900 dark:text-gray-100">
+                            HTML
+                          </h3>
+                          <pre className="mt-2 overflow-x-auto whitespace-pre-wrap rounded-lg bg-gray-50 dark:bg-gray-950 px-4 py-3">
+{page.html}
+                          </pre>
+                        </div>
+                      )}
+                    </div>
+                  </details>
+                );
+              })}
+            </div>
+          </section>
+        )}
 
         {structuredJson && (
           <section className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-sm">

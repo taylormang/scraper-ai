@@ -1,7 +1,7 @@
 import { desc, eq } from 'drizzle-orm';
 import { db, schema, type Scrape } from '../db/index.js';
 import type { ScrapeRepository } from './scrapeRepository.js';
-import type { ScrapeRecord, ScrapeResult } from '../types/scrape.js';
+import type { ScrapeRecord, ScrapeResult, ScrapePagination } from '../types/scrape.js';
 
 function transform(record: Scrape): ScrapeRecord {
   return {
@@ -17,10 +17,13 @@ function transform(record: Scrape): ScrapeRecord {
 }
 
 export class PostgresScrapeRepository implements ScrapeRepository {
-  async createScrape(data: { url: string; prompt?: string | null }): Promise<ScrapeRecord> {
+  async createScrape(data: { url: string; prompt?: string | null; pagination?: ScrapePagination | null }): Promise<ScrapeRecord> {
     const config: Record<string, unknown> = { url: data.url };
     if (data.prompt) {
       config.prompt = data.prompt;
+    }
+    if (data.pagination) {
+      config.pagination = data.pagination;
     }
 
     const [record] = await db.insert(schema.scrapes)

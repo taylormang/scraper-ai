@@ -8,10 +8,12 @@ Modern web interface built with Next.js 14 that provides a visual dashboard for 
 
 ## Features
 
- **Current:**
+- **Current:**
 - 🏠 Dashboard home page with overview
-- 🕸️ Scrapes history and detail pages with live API + JSON output
-- 🚀 Homepage action to trigger new scrapes with optional JSON prompt
+- 🕸️ Scrapes history and detail pages with live API, JSON output, and pagination insights
+- 🚀 Homepage action to trigger new scrapes with optional JSON prompt and pagination controls
+- 🧠 Planner playground to test prompt-to-plan translations
+- 📜 LLM trace viewer for audit/debugging
 - 📊 Datasets page for viewing scraped data
 - ⚙️ Settings page for configuration
 - 🎨 Responsive design with Tailwind CSS
@@ -122,7 +124,13 @@ Dashboard overview with quick stats, navigation cards, and a form to kick off ne
 List and manage scraped datasets. Currently shows empty state with getting started guide.
 
 ### Scrapes (`/scrapes`)
-Fetches scrape history from the API and renders status, prompts, and timestamps. Each row links to a detail view with raw HTML/Markdown plus any structured JSON captured via the prompt.
+Fetches scrape history from the API and renders status, prompts, pagination settings, and timestamps. Each row links to a detail view with per-page outputs (markdown, HTML, JSON) aggregated from the crawl.
+
+### Planner (`/planner`)
+Interactive test page for the prompt-to-plan endpoint. Submit natural-language instructions and inspect the structured plan JSON returned by the API.
+
+### Traces (`/traces`)
+Lists all recorded LLM traces. Use it to audit planner calls and future LLM-assisted features.
 
 ### Settings (`/settings`)
 Configure API keys and scraping preferences. Currently read-only with placeholders for environment variable configuration.

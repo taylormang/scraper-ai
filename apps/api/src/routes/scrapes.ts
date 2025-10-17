@@ -7,20 +7,54 @@ const router = Router();
 const scraperService = new ScraperService();
 
 // Request validation schema
-const scrapeRequestSchema = z.object({
-  url: z.string().url('Invalid URL format'),
-  prompt: z
-    .string()
-    .optional()
-    .transform((value) => {
-      if (!value) return undefined;
-      const trimmed = value.trim();
-      return trimmed.length > 0 ? trimmed : undefined;
-    })
-    .refine((value) => !value || value.length <= 2000, {
-      message: 'Prompt is too long',
-    }),
-});
+const paginationSchema = z
+  .object({
+    autoPaginate: z.boolean().optional(),
+    maxPages: z
+      .number()
+      .int()
+      .positive()
+      .optional(),
+    maxResults: z
+      .number()
+      .int()
+      .positive()
+      .optional(),
+    maxWaitTime: z
+      .number()
+      .int()
+      .positive()
+      .optional(),
+  })
+  .strict()
+  .refine(
+    (value) =>
+      value.autoPaginate !== undefined ||
+      value.maxPages !== undefined ||
+      value.maxResults !== undefined ||
+      value.maxWaitTime !== undefined,
+    {
+      message: 'Pagination settings must include at least one value',
+    }
+  );
+
+const scrapeRequestSchema = z
+  .object({
+    url: z.string().url('Invalid URL format'),
+    prompt: z
+      .string()
+      .optional()
+      .transform((value) => {
+        if (!value) return undefined;
+        const trimmed = value.trim();
+        return trimmed.length > 0 ? trimmed : undefined;
+      })
+      .refine((value) => !value || value.length <= 2000, {
+        message: 'Prompt is too long',
+      }),
+    pagination: paginationSchema.optional(),
+  })
+  .strict();
 
 /**
  * POST /api/scrapes
@@ -39,10 +73,10 @@ router.post('/', async (req, res, next) => {
       );
     }
 
-    const { url, prompt } = validationResult.data;
+    const { url, prompt, pagination } = validationResult.data;
 
     // Scrape the URL
-    const result = await scraperService.scrapeUrl(url, { prompt });
+    const result = await scraperService.scrapeUrl(url, { prompt, pagination });
 
     // Return successful response
     const response: ApiResponse = {

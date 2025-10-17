@@ -1,10 +1,7 @@
-import Database from 'better-sqlite3';
-import type { Database as DatabaseInstance } from 'better-sqlite3';
-import { mkdirSync, existsSync } from 'node:fs';
-import path from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { getSqliteDatabase } from '../db/sqliteClient.js';
 import type { ScrapeRepository } from './scrapeRepository.js';
-import type { ScrapeRecord, ScrapeResult } from '../types/scrape.js';
+import type { ScrapeRecord, ScrapeResult, ScrapePagination } from '../types/scrape.js';
 
 interface ScrapeRow {
   id: string;
@@ -15,18 +12,6 @@ interface ScrapeRow {
   error: string | null;
   created_at: string;
   updated_at: string;
-}
-
-function resolveDatabasePath(customPath?: string): string {
-  const defaultPath = path.resolve(process.cwd(), 'data', 'scraper.sqlite');
-  return customPath ? path.resolve(process.cwd(), customPath) : defaultPath;
-}
-
-function ensureDirectory(filePath: string) {
-  const dir = path.dirname(filePath);
-  if (!existsSync(dir)) {
-    mkdirSync(dir, { recursive: true });
-  }
 }
 
 function mapRow(row: ScrapeRow): ScrapeRecord {
@@ -43,36 +28,17 @@ function mapRow(row: ScrapeRow): ScrapeRecord {
 }
 
 export class SqliteScrapeRepository implements ScrapeRepository {
-  private db: DatabaseInstance;
+  private db = getSqliteDatabase();
 
-  constructor(databasePath?: string) {
-    const resolvedPath = resolveDatabasePath(databasePath);
-    ensureDirectory(resolvedPath);
-
-    this.db = new Database(resolvedPath);
-    this.db.pragma('foreign_keys = ON');
-    this.db.pragma('journal_mode = WAL');
-
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS scrapes (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        status TEXT NOT NULL,
-        config TEXT NOT NULL,
-        results TEXT,
-        error TEXT,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
-      );
-    `);
-  }
-
-  async createScrape(data: { url: string; prompt?: string | null }): Promise<ScrapeRecord> {
+  async createScrape(data: { url: string; prompt?: string | null; pagination?: ScrapePagination | null }): Promise<ScrapeRecord> {
     const id = randomUUID();
     const now = new Date().toISOString();
     const configData: Record<string, unknown> = { url: data.url };
     if (data.prompt) {
       configData.prompt = data.prompt;
+    }
+    if (data.pagination) {
+      configData.pagination = data.pagination;
     }
     const config = JSON.stringify(configData);
 

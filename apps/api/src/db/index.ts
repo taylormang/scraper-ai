@@ -20,7 +20,16 @@ export const db = drizzle(queryClient, { schema });
 export { schema };
 
 // Export types for convenience
-export type { Scrape, NewScrape, Job, NewJob, Dataset, NewDataset } from './schema.js';
+export type {
+  Scrape,
+  NewScrape,
+  Job,
+  NewJob,
+  Dataset,
+  NewDataset,
+  Trace,
+  NewTrace,
+} from './schema.js';
 
 // Health check function
 export async function checkDatabaseConnection(): Promise<boolean> {

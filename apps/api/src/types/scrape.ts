@@ -7,9 +7,26 @@ export interface ScrapeMetadata {
   sourceURL?: string;
 }
 
+export interface ScrapePagination {
+  autoPaginate?: boolean;
+  maxPages?: number;
+  maxResults?: number;
+  maxWaitTime?: number;
+}
+
+export interface ScrapePage {
+  index: number;
+  url: string;
+  markdown?: string;
+  html?: string;
+  structuredData?: unknown;
+  metadata?: ScrapeMetadata;
+}
+
 export interface ScrapeConfig {
   url: string;
   prompt?: string;
+  pagination?: ScrapePagination;
   [key: string]: unknown;
 }
 
@@ -24,6 +41,7 @@ export interface ScrapeResult {
   duration: number;
   scrapedAt: string;
   prompt?: string;
+  pages?: ScrapePage[];
 }
 
 export interface ScrapeRecord {

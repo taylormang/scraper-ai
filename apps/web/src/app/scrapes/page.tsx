@@ -132,6 +132,8 @@ export default async function ScrapesPage() {
                   statusVariant[status] || 'bg-gray-100 text-gray-800';
                 const title =
                   scrape.results?.metadata?.title || getHostname(scrape.name);
+                const pageCount = scrape.results?.pages?.length ?? 0;
+                const pagination = scrape.config?.pagination;
 
                 return (
                   <Link
@@ -151,6 +153,19 @@ export default async function ScrapesPage() {
                         )}
                         {scrape.error && (
                           <p className="mt-1 text-xs text-red-500">{scrape.error}</p>
+                        )}
+                        {pageCount > 0 && (
+                          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                            Pages captured: {pageCount}
+                          </p>
+                        )}
+                        {pagination && (
+                          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                            Pagination: {pagination.autoPaginate === false ? 'manual' : 'auto'}
+                            {pagination.maxPages !== undefined && ` · maxPages ${pagination.maxPages}`}
+                            {pagination.maxResults !== undefined &&
+                              ` · maxResults ${pagination.maxResults}`}
+                          </p>
                         )}
                       </div>
 

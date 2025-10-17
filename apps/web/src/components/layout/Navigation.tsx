@@ -30,6 +30,18 @@ export function Navigation() {
             >
               Settings
             </Link>
+            <Link
+              href="/planner"
+              className="flex items-center text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+            >
+              Planner Test
+            </Link>
+            <Link
+              href="/traces"
+              className="flex items-center text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+            >
+              LLM Traces
+            </Link>
           </div>
 
           <div className="flex items-center space-x-4">

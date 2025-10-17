@@ -13,6 +13,16 @@ export const scrapes = pgTable('scrapes', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
 
+export const traces = pgTable('traces', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  type: text('type').notNull(),
+  model: text('model').notNull(),
+  prompt: text('prompt').notNull(),
+  response: jsonb('response'),
+  metadata: jsonb('metadata'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
 // Jobs table - Job queue tracking for BullMQ integration
 export const jobs = pgTable('jobs', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -58,3 +68,6 @@ export type NewJob = typeof jobs.$inferInsert;
 
 export type Dataset = typeof datasets.$inferSelect;
 export type NewDataset = typeof datasets.$inferInsert;
+
+export type Trace = typeof traces.$inferSelect;
+export type NewTrace = typeof traces.$inferInsert;

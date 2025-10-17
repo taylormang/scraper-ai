@@ -17,12 +17,15 @@
   "dependencies": {
     "@mendable/firecrawl-js": "^4.4.1",
     "@scraper/shared-types": "*",
+    "@types/cheerio": "^1.0.0",
+    "better-sqlite3": "^9.4.3",
+    "cheerio": "^1.0.0-rc.12",
     "cors": "^2.8.5",
     "dotenv": "^16.4.1",
     "drizzle-orm": "^0.44.6",
     "express": "^4.18.2",
     "helmet": "^7.1.0",
-    "better-sqlite3": "^9.4.3",
+    "openai": "^4.104.0",
     "postgres": "^3.4.7",
     "zod": "^3.22.4"
   },

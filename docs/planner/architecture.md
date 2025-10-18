@@ -20,7 +20,7 @@ User Prompt
 6. Full Crawl & Persistence (existing scraper service)
 ```
 
-The planner UI (`/planner`) walks through the first five steps today, providing visibility into inputs, outputs, traces, and job previews at each stage.
+The planner UI (`/planner`) walks through the first five steps today, providing visibility into inputs, outputs, traces, and job previews at each stage. Each step now renders as its own component (`PlanStep`, `ReconStep`, `PaginationStep`, `ExtractionStep`, `JobAssemblyStep`) within `PlannerPlayground`, making the flow easier to reason about and enabling targeted maintenance.
 
 ## Components
 

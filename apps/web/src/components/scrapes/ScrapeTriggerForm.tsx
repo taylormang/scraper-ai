@@ -97,8 +97,18 @@ export function ScrapeTriggerForm() {
         throw new Error(errorMessage);
       }
 
+      if (json.data.success !== true) {
+        throw new Error(
+          json.data.error ??
+            json.data.message ??
+            'Scrape request accepted but failed to start. Check the Scrapes page for details.'
+        );
+      }
+
+      const result = json.data;
+
       setState('success');
-      setScrapeId(json.data.id);
+      setScrapeId(result.id);
       setMessage('Scrape started successfully. Check the scrapes page for JSON and markdown outputs.');
       setUrl('https://example.com');
       setPrompt('');

@@ -1,7 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import { getSqliteDatabase } from '../db/sqliteClient.js';
 import type { ScrapeRepository } from './scrapeRepository.js';
-import type { ScrapeRecord, ScrapeResult, ScrapePagination } from '../types/scrape.js';
+import type {
+  ScrapeRecord,
+  ScrapeResult,
+  ScrapeSuccessResult,
+  ScrapeFailureResult,
+  ScrapePagination,
+} from '../types/scrape.js';
 
 interface ScrapeRow {
   id: string;
@@ -59,7 +65,7 @@ export class SqliteScrapeRepository implements ScrapeRepository {
     };
   }
 
-  async markCompleted(id: string, result: ScrapeResult): Promise<void> {
+  async markCompleted(id: string, result: ScrapeSuccessResult): Promise<void> {
     const stmt = this.db.prepare(`
       UPDATE scrapes
       SET status = ?, results = ?, error = NULL, updated_at = ?
@@ -69,14 +75,20 @@ export class SqliteScrapeRepository implements ScrapeRepository {
     stmt.run('completed', JSON.stringify(result), new Date().toISOString(), id);
   }
 
-  async markFailed(id: string, error: string): Promise<void> {
+  async markFailed(id: string, error: string, failure?: ScrapeFailureResult): Promise<void> {
     const stmt = this.db.prepare(`
       UPDATE scrapes
-      SET status = ?, error = ?, updated_at = ?
+      SET status = ?, error = ?, results = ?, updated_at = ?
       WHERE id = ?
     `);
 
-    stmt.run('failed', error, new Date().toISOString(), id);
+    stmt.run(
+      'failed',
+      error,
+      failure ? JSON.stringify(failure) : null,
+      new Date().toISOString(),
+      id
+    );
   }
 
   async getAllScrapes(): Promise<ScrapeRecord[]> {

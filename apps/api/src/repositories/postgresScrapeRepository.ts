@@ -1,7 +1,13 @@
 import { desc, eq } from 'drizzle-orm';
 import { db, schema, type Scrape } from '../db/index.js';
 import type { ScrapeRepository } from './scrapeRepository.js';
-import type { ScrapeRecord, ScrapeResult, ScrapePagination } from '../types/scrape.js';
+import type {
+  ScrapeRecord,
+  ScrapeResult,
+  ScrapeSuccessResult,
+  ScrapeFailureResult,
+  ScrapePagination,
+} from '../types/scrape.js';
 
 function transform(record: Scrape): ScrapeRecord {
   return {
@@ -37,7 +43,7 @@ export class PostgresScrapeRepository implements ScrapeRepository {
     return transform(record);
   }
 
-  async markCompleted(id: string, result: ScrapeResult): Promise<void> {
+  async markCompleted(id: string, result: ScrapeSuccessResult): Promise<void> {
     await db.update(schema.scrapes)
       .set({
         status: 'completed',
@@ -47,11 +53,12 @@ export class PostgresScrapeRepository implements ScrapeRepository {
       .where(eq(schema.scrapes.id, id));
   }
 
-  async markFailed(id: string, error: string): Promise<void> {
+  async markFailed(id: string, error: string, failure?: ScrapeFailureResult): Promise<void> {
     await db.update(schema.scrapes)
       .set({
         status: 'failed',
         error,
+        results: failure ?? null,
         updatedAt: new Date(),
       })
       .where(eq(schema.scrapes.id, id));

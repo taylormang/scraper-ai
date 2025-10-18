@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import Firecrawl from '@mendable/firecrawl-js';
 import type { CrawlJob, PaginationConfig, Document as FirecrawlDocument } from '@mendable/firecrawl-js';
 import { config } from '../config/index.js';
@@ -6,9 +7,15 @@ import type { ScrapeRepository } from '../repositories/scrapeRepository.js';
 import type {
   ScrapeRecord,
   ScrapeResult,
+  ScrapeSuccessResult,
+  ScrapeFailureResult,
   ScrapePagination,
   ScrapeMetadata,
   ScrapePage,
+  ScrapeWorkflowLog,
+  ScrapeWorkflowStep,
+  ScrapeWorkflowStepStatus,
+  ScrapeThoughtSeverity,
 } from '../types/scrape.js';
 
 interface ScrapeOptions {
@@ -44,6 +51,92 @@ export class ScraperService {
     const prompt = options.prompt?.trim() || undefined;
     const pagination = options.pagination || undefined;
 
+    const workflow: ScrapeWorkflowLog = { steps: [] };
+    const steps = {
+      intake: { id: 'intake', label: 'Intake & Validation' },
+      firecrawl: { id: 'firecrawl', label: 'Firecrawl Execution' },
+      persistence: { id: 'persistence', label: 'Persistence & Storage' },
+      failure: { id: 'failure', label: 'Failure Handling' },
+    } as const;
+
+    const nowIso = () => new Date().toISOString();
+
+    const ensureStep = (id: string, label: string): ScrapeWorkflowStep => {
+      let step = workflow.steps.find((item) => item.id === id);
+      if (!step) {
+        step = {
+          id,
+          label,
+          status: 'pending',
+          thoughts: [],
+        };
+        workflow.steps.push(step);
+      } else if (step.label !== label) {
+        step.label = label;
+      }
+      return step;
+    };
+
+    const setStepStatus = (
+      id: string,
+      label: string,
+      status: ScrapeWorkflowStepStatus
+    ): void => {
+      const step = ensureStep(id, label);
+      if (!step.startedAt && status !== 'pending') {
+        step.startedAt = nowIso();
+      }
+      step.status = status;
+      if (status === 'success' || status === 'error') {
+        step.completedAt = nowIso();
+      }
+    };
+
+    const addThought = (
+      id: string,
+      label: string,
+      text: string,
+      body?: unknown,
+      severity: ScrapeThoughtSeverity = 'info'
+    ): void => {
+      const step = ensureStep(id, label);
+      if (!step.startedAt) {
+        step.startedAt = nowIso();
+      }
+      if (step.status === 'pending') {
+        step.status = 'in_progress';
+      }
+      step.thoughts.push({
+        id: randomUUID(),
+        text,
+        body,
+        createdAt: nowIso(),
+        severity,
+      });
+    };
+
+    const markActiveStepsAsError = (): void => {
+      const timestamp = nowIso();
+      workflow.steps.forEach((step) => {
+        if (step.status === 'in_progress') {
+          step.status = 'error';
+          step.completedAt = timestamp;
+        } else if (step.status === 'pending') {
+          step.status = 'error';
+          if (!step.startedAt) {
+            step.startedAt = timestamp;
+          }
+          step.completedAt = timestamp;
+        }
+      });
+    };
+
+    addThought(steps.intake.id, steps.intake.label, 'Received scrape request', {
+      url,
+      promptIncluded: Boolean(prompt),
+      paginationRequested: Boolean(pagination),
+    });
+
     const scrapeRecord = await this.repository.createScrape({
       url,
       prompt,
@@ -51,6 +144,11 @@ export class ScraperService {
     });
 
     console.log(`[Scraper] Created scrape record: ${scrapeRecord.id}`);
+
+    addThought(steps.intake.id, steps.intake.label, 'Created scrape record', {
+      scrapeId: scrapeRecord.id,
+    });
+    setStepStatus(steps.intake.id, steps.intake.label, 'success');
 
     try {
       const startTime = Date.now();
@@ -69,6 +167,16 @@ export class ScraperService {
         });
       }
 
+      addThought(
+        steps.firecrawl.id,
+        steps.firecrawl.label,
+        pagination ? 'Starting Firecrawl crawl job' : 'Starting Firecrawl single-page scrape',
+        {
+          formats,
+          pagination: pagination ?? null,
+        }
+      );
+
       const documents = pagination
         ? await this.runCrawl(url, formats, pagination)
         : await this.runSingleScrape(url, formats);
@@ -78,24 +186,44 @@ export class ScraperService {
       }
 
       const firstDoc = documents[0];
+
+      addThought(steps.firecrawl.id, steps.firecrawl.label, 'Firecrawl returned data', {
+        documents: documents.length,
+        metadata: firstDoc?.metadata ?? null,
+      });
+      setStepStatus(steps.firecrawl.id, steps.firecrawl.label, 'success');
+
       const duration = Date.now() - startTime;
       const pages = this.mapPages(documents, url);
+      const structuredData = this.extractStructuredData(firstDoc);
 
-      const scrapeResult: ScrapeResult = {
+      addThought(steps.persistence.id, steps.persistence.label, 'Preparing scrape result payload', {
+        durationMs: duration,
+        pageCount: pages.length,
+        structuredData: Boolean(structuredData),
+      });
+
+      const scrapeResult: ScrapeSuccessResult = {
         success: true,
         id: scrapeRecord.id,
         url,
         markdown: firstDoc.markdown || '',
         html: firstDoc.html || '',
-        structuredData: this.extractStructuredData(firstDoc),
+        structuredData,
         metadata: this.mapMetadata(firstDoc, url),
         duration,
         scrapedAt: new Date().toISOString(),
         prompt,
         pages,
+        workflow,
       };
 
       await this.repository.markCompleted(scrapeRecord.id, scrapeResult);
+
+      addThought(steps.persistence.id, steps.persistence.label, 'Marked scrape as completed', {
+        scrapeId: scrapeRecord.id,
+      });
+      setStepStatus(steps.persistence.id, steps.persistence.label, 'success');
 
       console.log(`[Scraper] Updated scrape record ${scrapeRecord.id} as completed`);
 
@@ -104,7 +232,26 @@ export class ScraperService {
       console.error('[Scraper] Error:', error);
 
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      await this.repository.markFailed(scrapeRecord.id, errorMessage);
+      markActiveStepsAsError();
+      addThought(
+        steps.failure.id,
+        steps.failure.label,
+        'Scrape failed',
+        {
+          error: errorMessage,
+        },
+        'error'
+      );
+      setStepStatus(steps.failure.id, steps.failure.label, 'error');
+
+      const failureResult: ScrapeFailureResult = {
+        success: false,
+        workflow,
+        error: errorMessage,
+        message: 'Scrape execution failed',
+      };
+
+      await this.repository.markFailed(scrapeRecord.id, errorMessage, failureResult);
 
       throw new Error(`Failed to scrape URL: ${errorMessage}`);
     }

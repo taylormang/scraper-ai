@@ -127,12 +127,13 @@ export default async function ScrapesPage() {
 
             <div className="divide-y divide-gray-200 dark:divide-gray-800">
               {scrapes.map((scrape) => {
+                const successResult = scrape.results && scrape.results.success === true ? scrape.results : undefined;
                 const status = scrape.status.toLowerCase();
                 const statusClass =
                   statusVariant[status] || 'bg-gray-100 text-gray-800';
                 const title =
-                  scrape.results?.metadata?.title || getHostname(scrape.name);
-                const pageCount = scrape.results?.pages?.length ?? 0;
+                  successResult?.metadata?.title || getHostname(scrape.name);
+                const pageCount = successResult?.pages?.length ?? 0;
                 const pagination = scrape.config?.pagination;
 
                 return (

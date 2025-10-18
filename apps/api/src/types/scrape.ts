@@ -30,8 +30,33 @@ export interface ScrapeConfig {
   [key: string]: unknown;
 }
 
-export interface ScrapeResult {
-  success: boolean;
+export type ScrapeThoughtSeverity = 'info' | 'warning' | 'error';
+
+export interface ScrapeThought {
+  id: string;
+  text: string;
+  body?: unknown;
+  createdAt: string;
+  severity: ScrapeThoughtSeverity;
+}
+
+export type ScrapeWorkflowStepStatus = 'pending' | 'in_progress' | 'success' | 'error';
+
+export interface ScrapeWorkflowStep {
+  id: string;
+  label: string;
+  status: ScrapeWorkflowStepStatus;
+  startedAt?: string;
+  completedAt?: string;
+  thoughts: ScrapeThought[];
+}
+
+export interface ScrapeWorkflowLog {
+  steps: ScrapeWorkflowStep[];
+}
+
+export interface ScrapeSuccessResult {
+  success: true;
   id: string;
   url: string;
   markdown: string;
@@ -42,7 +67,17 @@ export interface ScrapeResult {
   scrapedAt: string;
   prompt?: string;
   pages?: ScrapePage[];
+  workflow?: ScrapeWorkflowLog;
 }
+
+export interface ScrapeFailureResult {
+  success: false;
+  workflow: ScrapeWorkflowLog;
+  error?: string;
+  message?: string;
+}
+
+export type ScrapeResult = ScrapeSuccessResult | ScrapeFailureResult;
 
 export interface ScrapeRecord {
   id: string;

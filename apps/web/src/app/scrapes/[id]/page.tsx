@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getApiBaseUrl } from '@/lib/config';
-import type { ApiResponse, ScrapeRecord } from '@/types/scrape';
+import { ScrapeThoughtLog } from '@/components/scrapes/ScrapeThoughtLog';
+import type { ApiResponse, ScrapeRecord, WorkflowLog } from '@/types/scrape';
 
 interface ScrapeDetailParams {
   params: {
@@ -104,12 +105,15 @@ export default async function ScrapeDetailPage({ params }: ScrapeDetailParams) {
   }
 
   const { results } = scrape;
-  const prompt = scrape.config?.prompt || results?.prompt;
+  const successResult = results && results.success === true ? results : null;
+  const failureResult = results && results.success === false ? results : null;
+  const workflow: WorkflowLog | undefined = results?.workflow;
+  const prompt = scrape.config?.prompt || successResult?.prompt;
   const structuredJson =
-    results?.structuredData !== undefined
-      ? JSON.stringify(results.structuredData, null, 2)
+    successResult?.structuredData !== undefined
+      ? JSON.stringify(successResult.structuredData, null, 2)
       : null;
-  const pages = results?.pages ?? [];
+  const pages = successResult?.pages ?? [];
   const pagination = scrape.config?.pagination;
 
   return (
@@ -126,7 +130,7 @@ export default async function ScrapeDetailPage({ params }: ScrapeDetailParams) {
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
               <h1 className="text-3xl font-semibold text-gray-900 dark:text-gray-100">
-                {results?.metadata?.title || scrape.name}
+                {successResult?.metadata?.title || scrape.name}
               </h1>
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 break-all">
                 {scrape.name}
@@ -142,19 +146,19 @@ export default async function ScrapeDetailPage({ params }: ScrapeDetailParams) {
               </dt>
               <dd className="mt-1 break-all">{scrape.id}</dd>
             </div>
-            {results?.metadata?.sourceURL && (
+            {successResult?.metadata?.sourceURL && (
               <div>
                 <dt className="font-medium text-gray-900 dark:text-gray-200">
                   Source
                 </dt>
                 <dd className="mt-1">
                   <a
-                    href={results.metadata.sourceURL}
+                    href={successResult.metadata.sourceURL}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-blue-600 dark:text-blue-400 hover:underline"
                   >
-                    {results.metadata.sourceURL}
+                    {successResult.metadata.sourceURL}
                   </a>
                 </dd>
               </div>
@@ -216,8 +220,8 @@ export default async function ScrapeDetailPage({ params }: ScrapeDetailParams) {
                 Duration
               </dt>
               <dd className="mt-1">
-                {results?.duration
-                  ? `${(results.duration / 1000).toFixed(2)}s`
+                {successResult?.duration
+                  ? `${(successResult.duration / 1000).toFixed(2)}s`
                   : 'Unknown'}
               </dd>
             </div>
@@ -225,7 +229,7 @@ export default async function ScrapeDetailPage({ params }: ScrapeDetailParams) {
               <dt className="font-medium text-gray-900 dark:text-gray-200">
                 Language
               </dt>
-              <dd className="mt-1">{results?.metadata?.language || 'Unknown'}</dd>
+              <dd className="mt-1">{successResult?.metadata?.language || 'Unknown'}</dd>
             </div>
           </dl>
 
@@ -235,7 +239,18 @@ export default async function ScrapeDetailPage({ params }: ScrapeDetailParams) {
               <span>{scrape.error}</span>
             </div>
           )}
+
+          {failureResult && !scrape.error && (
+            <div className="mt-6 rounded-lg border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-500/10 px-4 py-3 text-sm text-red-700 dark:text-red-200">
+              <strong className="block font-semibold mb-1">Error</strong>
+              <span>{failureResult.error ?? failureResult.message ?? 'Scrape failed without a message.'}</span>
+            </div>
+          )}
         </div>
+
+        {workflow && workflow.steps.length > 0 && (
+          <ScrapeThoughtLog workflow={workflow} />
+        )}
 
         {pages.length > 0 && (
           <section className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-sm">
@@ -329,7 +344,7 @@ export default async function ScrapeDetailPage({ params }: ScrapeDetailParams) {
           </section>
         )}
 
-        {results?.markdown && (
+        {successResult?.markdown && (
           <section className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-sm">
             <header className="px-6 py-4 border-b border-gray-200 dark:border-gray-800">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
@@ -340,12 +355,12 @@ export default async function ScrapeDetailPage({ params }: ScrapeDetailParams) {
               </p>
             </header>
             <pre className="overflow-x-auto whitespace-pre-wrap px-6 py-4 text-sm text-gray-800 dark:text-gray-200 bg-gray-50 dark:bg-gray-950 rounded-b-2xl">
-{results.markdown}
+{successResult.markdown}
             </pre>
           </section>
         )}
 
-        {results?.html && (
+        {successResult?.html && (
           <section className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-sm">
             <header className="px-6 py-4 border-b border-gray-200 dark:border-gray-800">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
@@ -356,7 +371,7 @@ export default async function ScrapeDetailPage({ params }: ScrapeDetailParams) {
               </p>
             </header>
             <pre className="overflow-x-auto whitespace-pre-wrap px-6 py-4 text-sm text-gray-800 dark:text-gray-200 bg-gray-50 dark:bg-gray-950 rounded-b-2xl">
-{results.html}
+{successResult.html}
             </pre>
           </section>
         )}

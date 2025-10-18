@@ -1,14 +1,65 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { getApiBaseUrl } from '@/lib/config';
+import { ScrapeThoughtLog } from '@/components/scrapes/ScrapeThoughtLog';
 import type {
   PlanResponse,
   ReconResponse,
   PaginationInferenceResponse,
+  ExtractionSchemaResponse,
+  JobAssemblyResponse,
 } from '@/types/planner';
+import type { WorkflowLog, ThoughtSeverity } from '@/types/scrape';
+import { PlanStep } from './steps/PlanStep';
+import { ReconStep } from './steps/ReconStep';
+import { PaginationStep } from './steps/PaginationStep';
+import { ExtractionStep } from './steps/ExtractionStep';
+import { JobAssemblyStep } from './steps/JobAssemblyStep';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
+
+const PLANNER_WORKFLOW_STEPS = [
+  { id: 'plan', label: 'Plan' },
+  { id: 'recon', label: 'Recon' },
+  { id: 'pagination', label: 'Pagination' },
+  { id: 'extraction', label: 'Extraction' },
+  { id: 'job', label: 'Job Assembly' },
+] as const;
+
+type PlannerWorkflowStepId = (typeof PLANNER_WORKFLOW_STEPS)[number]['id'];
+
+const PLANNER_WORKFLOW_LABEL: Record<PlannerWorkflowStepId, string> = {
+  plan: 'Plan',
+  recon: 'Recon',
+  pagination: 'Pagination',
+  extraction: 'Extraction',
+  job: 'Job Assembly',
+};
+
+function createInitialWorkflow(): WorkflowLog {
+  return {
+    steps: PLANNER_WORKFLOW_STEPS.map((step) => ({
+      id: step.id,
+      label: step.label,
+      status: 'pending',
+      thoughts: [],
+    })),
+  };
+}
+
+function generateThoughtId(): string {
+  if (typeof window !== 'undefined' && window.crypto?.randomUUID) {
+    return window.crypto.randomUUID();
+  }
+  if (typeof globalThis !== 'undefined') {
+    const globalCrypto = (globalThis as { crypto?: Crypto }).crypto;
+    if (globalCrypto?.randomUUID) {
+      return globalCrypto.randomUUID();
+    }
+  }
+  return Math.random().toString(36).slice(2);
+}
 
 export function PlannerPlayground() {
   const [prompt, setPrompt] = useState(
@@ -18,6 +69,7 @@ export function PlannerPlayground() {
   const [planStatus, setPlanStatus] = useState<Status>('idle');
   const [planError, setPlanError] = useState<string | null>(null);
   const [planResponse, setPlanResponse] = useState<PlanResponse | null>(null);
+  const latestPlanRef = useRef<PlanResponse | null>(null);
 
   const [reconStatus, setReconStatus] = useState<Status>('idle');
   const [reconError, setReconError] = useState<string | null>(null);
@@ -29,14 +81,146 @@ export function PlannerPlayground() {
   const [paginationResponse, setPaginationResponse] = useState<PaginationInferenceResponse | null>(
     null
   );
+  const [extractionStatus, setExtractionStatus] = useState<Status>('idle');
+  const [extractionError, setExtractionError] = useState<string | null>(null);
+  const [extractionResponse, setExtractionResponse] = useState<ExtractionSchemaResponse | null>(
+    null
+  );
+  const [jobStatus, setJobStatus] = useState<Status>('idle');
+  const [jobError, setJobError] = useState<string | null>(null);
+  const [jobResponse, setJobResponse] = useState<JobAssemblyResponse | null>(null);
+  const [workflow, setWorkflow] = useState<WorkflowLog>(() => createInitialWorkflow());
+
+  const resetWorkflow = useCallback(() => {
+    setWorkflow(createInitialWorkflow());
+  }, []);
+
+  const mutateStep = useCallback(
+    (stepId: PlannerWorkflowStepId, updater: (step: WorkflowLog['steps'][number]) => void) => {
+      setWorkflow((prev) => ({
+        steps: prev.steps.map((step) => {
+          if (step.id !== stepId) {
+            return step;
+          }
+          const updated: WorkflowLog['steps'][number] = {
+            ...step,
+            label: PLANNER_WORKFLOW_LABEL[stepId],
+            thoughts: [...step.thoughts],
+          };
+          updater(updated);
+          return updated;
+        }),
+      }));
+    },
+    []
+  );
+
+  const clearSteps = useCallback((stepIds: PlannerWorkflowStepId[]) => {
+    setWorkflow((prev) => ({
+      steps: prev.steps.map((step) => {
+        if (!stepIds.includes(step.id as PlannerWorkflowStepId)) {
+          return step;
+        }
+        const id = step.id as PlannerWorkflowStepId;
+        return {
+          id,
+          label: PLANNER_WORKFLOW_LABEL[id],
+          status: 'pending',
+          thoughts: [],
+          startedAt: undefined,
+          completedAt: undefined,
+        };
+      }),
+    }));
+  }, []);
+
+  const beginStep = useCallback(
+    (stepId: PlannerWorkflowStepId) => {
+      const timestamp = new Date().toISOString();
+      mutateStep(stepId, (step) => {
+        if (!step.startedAt) {
+          step.startedAt = timestamp;
+        }
+        step.status = 'in_progress';
+      });
+    },
+    [mutateStep]
+  );
+
+  const completeStep = useCallback(
+    (stepId: PlannerWorkflowStepId, status: 'success' | 'error') => {
+      const timestamp = new Date().toISOString();
+      mutateStep(stepId, (step) => {
+        if (!step.startedAt) {
+          step.startedAt = timestamp;
+        }
+        step.status = status;
+        step.completedAt = timestamp;
+      });
+    },
+    [mutateStep]
+  );
+
+  const addThought = useCallback(
+    (
+      stepId: PlannerWorkflowStepId,
+      text: string,
+      body?: unknown,
+      severity: ThoughtSeverity = 'info'
+    ) => {
+      const timestamp = new Date().toISOString();
+      mutateStep(stepId, (step) => {
+        if (!step.startedAt) {
+          step.startedAt = timestamp;
+        }
+        if (step.status === 'pending') {
+          step.status = 'in_progress';
+        }
+        step.thoughts.push({
+          id: generateThoughtId(),
+          text,
+          body,
+          createdAt: timestamp,
+          severity,
+        });
+      });
+    },
+    [mutateStep]
+  );
+
+  const resetPaginationState = () => {
+    setPaginationStatus('idle');
+    setPaginationError(null);
+    setPaginationResponse(null);
+  };
+
+  const resetExtractionState = () => {
+    setExtractionStatus('idle');
+    setExtractionError(null);
+    setExtractionResponse(null);
+  };
+
+  const resetJobState = () => {
+    setJobStatus('idle');
+    setJobError(null);
+    setJobResponse(null);
+  };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    resetWorkflow();
+    latestPlanRef.current = null;
     setPlanStatus('loading');
     setPlanError(null);
     setPlanResponse(null);
-    resetRecon();
-    resetPagination();
+    setReconStatus('idle');
+    setReconError(null);
+    setReconResponse(null);
+    resetPaginationState();
+    resetExtractionState();
+    resetJobState();
+    beginStep('plan');
+    addThought('plan', 'Submitting prompt to planner service', { prompt });
 
     try {
       const baseUrl = getApiBaseUrl();
@@ -52,38 +236,121 @@ export function PlannerPlayground() {
       }
 
       const data = json.data as PlanResponse;
+      latestPlanRef.current = data;
       setPlanResponse(data);
       setPlanStatus('success');
+
+      addThought('plan', 'Planner generated structured plan', {
+        baseUrl: data.plan.baseUrl,
+        extractionFields: data.plan.extractionFields.length,
+        paginationStrategy: data.plan.pagination.strategy,
+        confidence: data.plan.confidence,
+      });
+      completeStep('plan', 'success');
 
       if (data.plan.baseUrl) {
         setReconUrl(data.plan.baseUrl);
         await runRecon(data.plan.baseUrl);
+      } else {
+        addThought(
+          'recon',
+          'Recon skipped: planner did not provide a base URL',
+          { objective: data.plan.objective },
+          'warning'
+        );
+        completeStep('recon', 'error');
+        addThought(
+          'pagination',
+          'Pagination skipped: recon never executed',
+          { reason: 'No base URL from plan' },
+          'warning'
+        );
+        completeStep('pagination', 'error');
+        setExtractionStatus('error');
+        setExtractionError('Extraction requires a base URL to fetch the first page.');
+        setExtractionResponse(null);
+        addThought(
+          'extraction',
+          'Extraction skipped: planner did not provide a base URL',
+          { objective: data.plan.objective },
+          'warning'
+        );
+        completeStep('extraction', 'error');
+        setJobStatus('error');
+        setJobError('Job assembly skipped: planner did not provide a base URL');
+        addThought('job', 'Job assembly skipped: planner missing base URL', null, 'warning');
+        completeStep('job', 'error');
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error';
       setPlanError(message);
       setPlanStatus('error');
+      latestPlanRef.current = null;
+
+      addThought('plan', 'Planner request failed', { error: message }, 'error');
+      completeStep('plan', 'error');
+      addThought(
+        'recon',
+        'Recon skipped: planner failed',
+        { reason: message },
+        'warning'
+      );
+      completeStep('recon', 'error');
+      addThought(
+        'pagination',
+        'Pagination skipped: planner failed',
+        { reason: message },
+        'warning'
+      );
+      completeStep('pagination', 'error');
+      setExtractionStatus('error');
+      setExtractionError(message);
+      setExtractionResponse(null);
+      addThought(
+        'extraction',
+        'Extraction skipped: planner failed',
+        { reason: message },
+        'warning'
+      );
+      completeStep('extraction', 'error');
+      setJobStatus('error');
+      setJobError(message);
+      addThought('job', 'Job assembly skipped: planner failed', { reason: message }, 'warning');
+      completeStep('job', 'error');
     }
   };
 
-  const resetRecon = () => {
-    setReconStatus('idle');
-    setReconError(null);
-    setReconResponse(null);
-  };
-
-  const resetPagination = () => {
-    setPaginationStatus('idle');
-    setPaginationError(null);
-    setPaginationResponse(null);
-  };
-
   const runRecon = async (url: string) => {
-    if (!url) return;
+    resetExtractionState();
+    resetJobState();
+    if (!url) {
+      clearSteps(['recon', 'pagination', 'extraction', 'job']);
+      addThought('recon', 'Recon skipped: missing base URL', undefined, 'warning');
+      completeStep('recon', 'error');
+      addThought('pagination', 'Pagination skipped: no recon input', undefined, 'warning');
+      completeStep('pagination', 'error');
+      setExtractionStatus('error');
+      setExtractionError('Extraction skipped: missing base URL');
+      setExtractionResponse(null);
+      addThought('extraction', 'Extraction skipped: missing base URL', undefined, 'warning');
+      completeStep('extraction', 'error');
+      setJobStatus('error');
+      setJobError('Job assembly skipped: missing base URL');
+      addThought('job', 'Job assembly skipped: missing base URL', undefined, 'warning');
+      completeStep('job', 'error');
+      return;
+    }
+
+    clearSteps(['recon', 'pagination', 'extraction', 'job']);
+    beginStep('recon');
+    addThought('recon', 'Fetching the first page', { url });
+
     setReconStatus('loading');
     setReconError(null);
     setReconResponse(null);
-    resetPagination();
+    resetPaginationState();
+
+    let data: ReconResponse;
 
     try {
       const baseUrl = getApiBaseUrl();
@@ -98,18 +365,93 @@ export function PlannerPlayground() {
         throw new Error(json.error?.message || 'Recon request failed');
       }
 
-      const data = json.data as ReconResponse;
-      setReconResponse(data);
-      setReconStatus('success');
-      await runPagination(data);
+      data = json.data as ReconResponse;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error';
       setReconError(message);
       setReconStatus('error');
+      addThought('recon', 'Recon failed', { error: message }, 'error');
+      completeStep('recon', 'error');
+      clearSteps(['pagination', 'extraction', 'job']);
+      addThought(
+        'pagination',
+        'Pagination inference skipped: recon failed',
+        { reason: message },
+        'warning'
+      );
+      completeStep('pagination', 'error');
+      setExtractionStatus('error');
+      setExtractionError(`Extraction skipped: recon failed (${message})`);
+      setExtractionResponse(null);
+      addThought(
+        'extraction',
+        'Extraction skipped: recon failed',
+        { reason: message },
+        'warning'
+      );
+      completeStep('extraction', 'error');
+      setJobStatus('error');
+      setJobError(`Job assembly skipped: recon failed (${message})`);
+      addThought(
+        'job',
+        'Job assembly skipped: recon failed',
+        { reason: message },
+        'warning'
+      );
+      completeStep('job', 'error');
+      return;
     }
+
+    setReconResponse(data);
+    setReconStatus('success');
+
+    const statusCode =
+      typeof data.metadata === 'object' && data.metadata
+        ? (data.metadata as Record<string, unknown>).statusCode
+        : undefined;
+    const proxyUsed =
+      typeof data.metadata === 'object' && data.metadata
+        ? (data.metadata as Record<string, unknown>).proxyUsed
+        : undefined;
+
+    if (typeof statusCode === 'number' && statusCode >= 400) {
+      addThought(
+        'recon',
+        `Page returned ${statusCode}. Switching strategy and trying again.`,
+        { statusCode },
+        'warning'
+      );
+    }
+
+    if (proxyUsed === 'stealth') {
+      addThought('recon', 'Stealth proxy engaged for follow-up attempt', { proxyUsed });
+    }
+
+    addThought('recon', 'Analyzing page contents', {
+      markdownBytes: data.markdown ? data.markdown.length : 0,
+      htmlBytes: data.html ? data.html.length : 0,
+      hasSummary: Boolean(data.summary),
+    });
+
+    if (data.summary) {
+      addThought('recon', 'Identifying useful elements like anchors and buttons', {
+        anchorsFound: data.summary.anchorSample?.length ?? 0,
+        buttonsFound: data.summary.buttonSample?.length ?? 0,
+        navigationFragments: data.summary.navigationFragments?.length ?? 0,
+      });
+    }
+    completeStep('recon', 'success');
+
+    await runPagination(data);
   };
 
   const runPagination = async (input: ReconResponse) => {
+    resetExtractionState();
+    resetJobState();
+    clearSteps(['pagination', 'extraction', 'job']);
+    beginStep('pagination');
+    addThought('pagination', 'Determining how to get to the next page', { url: input.url });
+
     setPaginationStatus('loading');
     setPaginationError(null);
     setPaginationResponse(null);
@@ -135,14 +477,215 @@ export function PlannerPlayground() {
         throw new Error(json.error?.message || 'Pagination inference failed');
       }
 
-      setPaginationResponse(json.data as PaginationInferenceResponse);
+      const inference = json.data as PaginationInferenceResponse;
+      setPaginationResponse(inference);
       setPaginationStatus('success');
+
+      addThought('pagination', 'Analyzing page for navigation cues', {
+        strategy: inference.pagination.strategy,
+        confidence: inference.pagination.confidence,
+        selector: inference.pagination.selector,
+        notes: inference.pagination.notes,
+      });
+
+      addThought('pagination', 'Building pagination configuration', {
+        actions: inference.pagination.actions,
+        hrefTemplate: inference.pagination.hrefTemplate,
+      });
+      completeStep('pagination', 'success');
+      await runExtraction(input, inference);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error';
       setPaginationError(message);
       setPaginationStatus('error');
+      addThought('pagination', 'Pagination inference failed', { error: message }, 'error');
+      completeStep('pagination', 'error');
+      setExtractionStatus('error');
+      setExtractionError(`Extraction skipped: pagination failed (${message})`);
+      setExtractionResponse(null);
+      addThought(
+        'extraction',
+        'Extraction skipped: pagination failed',
+        { reason: message },
+        'warning'
+      );
+      completeStep('extraction', 'error');
+      setJobStatus('error');
+      setJobError(`Job assembly skipped: pagination failed (${message})`);
+      addThought(
+        'job',
+        'Job assembly skipped: pagination failed',
+        { reason: message },
+        'warning'
+      );
+      completeStep('job', 'error');
     }
   };
+
+  const runExtraction = async (
+    recon: ReconResponse,
+    pagination?: PaginationInferenceResponse | null
+  ) => {
+    const plan = latestPlanRef.current;
+    if (!plan) {
+      setExtractionStatus('error');
+      setExtractionError('Extraction skipped: missing plan context');
+      addThought('extraction', 'Extraction skipped: missing plan context', null, 'warning');
+      completeStep('extraction', 'error');
+      return;
+    }
+
+    clearSteps(['extraction']);
+    beginStep('extraction');
+    addThought('extraction', 'Crafting extraction schema for Firecrawl', {
+      objective: plan.plan.objective,
+      baseUrl: plan.plan.baseUrl,
+    });
+
+    setExtractionStatus('loading');
+    setExtractionError(null);
+    setExtractionResponse(null);
+
+    try {
+      const baseUrl = getApiBaseUrl();
+      const body: Record<string, unknown> = {
+        userPrompt: prompt,
+        plan: plan.plan,
+        recon: {
+          url: recon.url,
+          markdown: recon.markdown,
+          html: recon.html,
+          summary: recon.summary,
+        },
+      };
+
+      if (pagination?.pagination) {
+        body.pagination = pagination.pagination;
+      }
+
+      const res = await fetch(`${baseUrl}/api/planner/extraction`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error?.message || 'Extraction schema generation failed');
+      }
+
+      const extraction = json.data as ExtractionSchemaResponse;
+      setExtractionResponse(extraction);
+      setExtractionStatus('success');
+
+      addThought('extraction', 'Refined extraction prompt ready', {
+        refinedPromptPreview: extraction.refinedPrompt.slice(0, 160),
+        llmFields: extraction.llmFields.length,
+      });
+
+      addThought('extraction', 'Firecrawl returned sample data', {
+        status: extraction.extractStatus,
+        inferredFields: extraction.inferredFields.length,
+      });
+
+      completeStep('extraction', 'success');
+      await runJobAssembly(recon, pagination ?? null, extraction);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      setExtractionError(message);
+      setExtractionStatus('error');
+      addThought('extraction', 'Extraction schema generation failed', { error: message }, 'error');
+      completeStep('extraction', 'error');
+      setJobStatus('error');
+      setJobError(`Job assembly skipped: extraction failed (${message})`);
+      addThought(
+        'job',
+        'Job assembly skipped: extraction failed',
+        { reason: message },
+        'warning'
+      );
+      completeStep('job', 'error');
+    }
+  };
+
+  const runJobAssembly = async (
+    recon: ReconResponse,
+    pagination: PaginationInferenceResponse | null,
+    extraction: ExtractionSchemaResponse
+  ) => {
+    const plan = latestPlanRef.current;
+    if (!plan) {
+      setJobStatus('error');
+      setJobError('Job assembly skipped: missing plan context');
+      addThought('job', 'Job assembly skipped: missing plan context', null, 'warning');
+      completeStep('job', 'error');
+      return;
+    }
+
+    clearSteps(['job']);
+    beginStep('job');
+    addThought('job', 'Assembling Firecrawl crawl configuration', {
+      baseUrl: plan.plan.baseUrl,
+      paginationStrategy: pagination?.pagination.strategy ?? null,
+    });
+
+    setJobStatus('loading');
+    setJobError(null);
+    setJobResponse(null);
+
+    try {
+      const baseUrl = getApiBaseUrl();
+      const body: Record<string, unknown> = {
+        userPrompt: prompt,
+        plan: plan.plan,
+        extraction,
+      };
+
+      if (pagination) {
+        body.pagination = pagination;
+      }
+
+      const res = await fetch(`${baseUrl}/api/planner/job`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error?.message || 'Job assembly failed');
+      }
+
+      const job = json.data as JobAssemblyResponse;
+      setJobResponse(job);
+      setJobStatus('success');
+
+      addThought('job', 'Firecrawl crawl config ready', {
+        limit: job.crawlConfig.limit ?? null,
+        formats: job.crawlConfig.scrapeOptions?.formats?.length ?? 0,
+        totalFields: job.schema.fields.length,
+      });
+
+      if (job.warnings.length) {
+        addThought('job', 'Job assembly warnings', job.warnings, 'warning');
+      }
+
+      completeStep('job', 'success');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      setJobError(message);
+      setJobStatus('error');
+      addThought('job', 'Job assembly failed', { error: message }, 'error');
+      completeStep('job', 'error');
+    }
+  };
+
+  const metadataSnapshot =
+    reconResponse?.metadata_snapshot ?? reconResponse?.metadataSnapshot ?? null;
+  const planHasBaseUrl = Boolean(planResponse?.plan.baseUrl);
+  const hasWorkflowActivity = workflow.steps.some(
+    (step) => step.status !== 'pending' || step.thoughts.length > 0
+  );
 
   return (
     <section className="space-y-6">
@@ -186,288 +729,62 @@ export function PlannerPlayground() {
       </form>
 
       <div className="space-y-6">
-        <section className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-6">
-          <header className="mb-4">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-              Step 1 · Plan
-            </h2>
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              Natural-language prompt translated into a structured scrape plan.
-            </p>
-          </header>
-          {planStatus === 'loading' && (
-            <p className="text-sm text-gray-600 dark:text-gray-400">Generating plan…</p>
-          )}
-          {planStatus === 'error' && (
-            <p className="text-sm text-red-500 dark:text-red-400">{planError}</p>
-          )}
-          {planStatus === 'success' && planResponse && (
-            <div className="space-y-4">
-              <dl className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-700 dark:text-gray-300">
-                <div>
-                  <dt className="font-semibold text-gray-900 dark:text-gray-100">Objective</dt>
-                  <dd className="mt-1">{planResponse.plan.objective}</dd>
-                </div>
-                <div>
-                  <dt className="font-semibold text-gray-900 dark:text-gray-100">Base URL</dt>
-                  <dd className="mt-1">
-                    {planResponse.plan.baseUrl || 'Not specified'}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="font-semibold text-gray-900 dark:text-gray-100">Extraction Format</dt>
-                  <dd className="mt-1 uppercase">{planResponse.plan.extractionFormat}</dd>
-                </div>
-                <div>
-                  <dt className="font-semibold text-gray-900 dark:text-gray-100">Pagination Target</dt>
-                  <dd className="mt-1">
-                    {planResponse.plan.pagination.strategy === 'unknown'
-                      ? 'Unknown'
-                      : `${planResponse.plan.pagination.strategy} → ${planResponse.plan.pagination.targetValue ?? 'n/a'}`}
-                  </dd>
-                </div>
-              </dl>
-              {planResponse.plan.extractionFields.length > 0 && (
-                <section className="text-sm">
-                  <h3 className="font-semibold text-gray-900 dark:text-gray-100">Fields</h3>
-                  <ul className="mt-2 space-y-1 text-gray-700 dark:text-gray-300">
-                    {planResponse.plan.extractionFields.map((field) => (
-                      <li key={field.name}>
-                        <span className="font-medium">{field.name}</span> – {field.description}
-                        {!field.required && <span className="text-xs text-gray-500"> (optional)</span>}
-                      </li>
-                    ))}
-                  </ul>
-                </section>
-              )}
-              <details className="text-sm">
-                <summary className="cursor-pointer text-blue-600 dark:text-blue-400">
-                  View raw plan JSON
-                </summary>
-                <pre className="mt-2 overflow-x-auto whitespace-pre-wrap bg-gray-50 dark:bg-gray-950 rounded-lg px-3 py-2 text-xs text-gray-800 dark:text-gray-200">
-{JSON.stringify(planResponse, null, 2)}
-                </pre>
-              </details>
-            </div>
-          )}
-        </section>
+        {hasWorkflowActivity && <ScrapeThoughtLog workflow={workflow} />}
 
-        <section className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-6">
-          <header className="mb-4 space-y-1">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-              Step 2 · Recon
-            </h2>
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              Fetch the base page once to understand its structure.
-            </p>
-            <div className="flex flex-col md:flex-row md:items-center gap-2 mt-3">
-              <input
-                type="url"
-                value={reconUrl}
-                onChange={(event) => setReconUrl(event.target.value)}
-                placeholder="https://example.com"
-                className="w-full md:flex-1 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <button
-                type="button"
-                onClick={() => reconUrl && runRecon(reconUrl)}
-                disabled={reconStatus === 'loading' || !reconUrl}
-                className="inline-flex items-center justify-center rounded-lg bg-blue-600 text-white px-4 py-2 text-sm font-semibold shadow-sm hover:bg-blue-700 disabled:bg-blue-400"
-              >
-                {reconStatus === 'loading' ? 'Running…' : 'Run Recon'}
-              </button>
-            </div>
-          </header>
+        <PlanStep status={planStatus} error={planError} plan={planResponse} />
 
-          {reconStatus === 'error' && (
-            <p className="text-sm text-red-500 dark:text-red-400">{reconError}</p>
-          )}
-          {reconStatus === 'loading' && (
-            <p className="text-sm text-gray-600 dark:text-gray-400">Fetching base page…</p>
-          )}
-          {reconStatus === 'success' && reconResponse && (
-            <div className="space-y-4 text-sm text-gray-700 dark:text-gray-300">
-              <div>
-                <h3 className="font-semibold text-gray-900 dark:text-gray-100">Recon URL</h3>
-                <p className="mt-1 break-words">{reconResponse.url}</p>
-              </div>
-              {reconResponse.metadata && (
-                <div>
-                  <h3 className="font-semibold text-gray-900 dark:text-gray-100">Metadata</h3>
-                  <pre className="mt-2 overflow-x-auto whitespace-pre-wrap bg-gray-50 dark:bg-gray-950 rounded-lg px-3 py-2 text-xs text-gray-800 dark:text-gray-200">
-{JSON.stringify(reconResponse.metadata, null, 2)}
-                  </pre>
-                </div>
-              )}
-              {reconResponse.markdown && (
-                <div>
-                  <h3 className="font-semibold text-gray-900 dark:text-gray-100">Markdown Snapshot</h3>
-                  <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap bg-gray-50 dark:bg-gray-950 rounded-lg px-3 py-2 text-xs text-gray-800 dark:text-gray-200">
-{truncate(reconResponse.markdown, 4000)}
-                  </pre>
-                </div>
-              )}
-              {reconResponse.html && (
-                <details>
-                  <summary className="cursor-pointer text-blue-600 dark:text-blue-400 text-xs">
-                    View HTML snapshot
-                  </summary>
-                  <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap bg-gray-50 dark:bg-gray-950 rounded-lg px-3 py-2 text-xs text-gray-800 dark:text-gray-200">
-{truncate(reconResponse.html, 4000)}
-                  </pre>
-                </details>
-              )}
-              {reconResponse.summary && (
-                <details>
-                  <summary className="cursor-pointer text-blue-600 dark:text-blue-400 text-xs">
-                    View pagination summary JSON
-                  </summary>
-                  <pre className="mt-2 overflow-x-auto whitespace-pre-wrap bg-gray-50 dark:bg-gray-950 rounded-lg px-3 py-2 text-xs text-gray-800 dark:text-gray-200">
-{JSON.stringify(reconResponse.summary, null, 2)}
-                  </pre>
-                </details>
-              )}
-              {paginationResponse?.summary && (
-                <details>
-                  <summary className="cursor-pointer text-blue-600 dark:text-blue-400 text-xs">
-                    View pagination summary JSON
-                  </summary>
-                  <pre className="mt-2 overflow-x-auto whitespace-pre-wrap bg-gray-50 dark:bg-gray-950 rounded-lg px-3 py-2 text-xs text-gray-800 dark:text-gray-200">
-{JSON.stringify(paginationResponse.summary, null, 2)}
-                  </pre>
-                </details>
-              )}
-            </div>
-          )}
-          {reconStatus === 'idle' && planStatus === 'success' && !planResponse?.plan.baseUrl && (
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              Planner did not specify a base URL. Provide one above to continue.
-            </p>
-          )}
-        </section>
+        <ReconStep
+          status={reconStatus}
+          error={reconError}
+          reconResponse={reconResponse}
+          reconUrl={reconUrl}
+          planHasBaseUrl={planHasBaseUrl}
+          onReconUrlChange={(event) => setReconUrl(event.target.value)}
+          onRunRecon={() => reconUrl && runRecon(reconUrl)}
+          metadataSnapshot={metadataSnapshot}
+          paginationResponse={paginationResponse}
+        />
 
-        <section className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-6">
-          <header className="mb-4 space-y-1">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-              Step 3 · Pagination Inference
-            </h2>
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              Analyze the recon output to identify pagination behaviour automatically.
-            </p>
-            <div className="flex flex-col md:flex-row md:items-center gap-2 mt-3">
-              <button
-                type="button"
-                onClick={() => reconResponse && runPagination(reconResponse)}
-                disabled={paginationStatus === 'loading' || !reconResponse}
-                className="inline-flex items-center justify-center rounded-lg bg-blue-600 text-white px-4 py-2 text-sm font-semibold shadow-sm hover:bg-blue-700 disabled:bg-blue-400"
-              >
-                {paginationStatus === 'loading' ? 'Inferring…' : 'Re-run Inference'}
-              </button>
-            </div>
-          </header>
+        <PaginationStep
+          status={paginationStatus}
+          error={paginationError}
+          paginationResponse={paginationResponse}
+          reconResponse={reconResponse}
+          onRunPagination={() => reconResponse && runPagination(reconResponse)}
+        />
 
-          {paginationStatus === 'idle' && !reconResponse && (
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              Run recon first to infer pagination.
-            </p>
-          )}
-          {paginationStatus === 'error' && (
-            <p className="text-sm text-red-500 dark:text-red-400">{paginationError}</p>
-          )}
-          {paginationStatus === 'loading' && (
-            <p className="text-sm text-gray-600 dark:text-gray-400">Analyzing pagination…</p>
-          )}
-              {paginationStatus === 'success' && paginationResponse && (
-                <div className="space-y-4 text-sm text-gray-700 dark:text-gray-300">
-              <dl className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <dt className="font-semibold text-gray-900 dark:text-gray-100">Strategy</dt>
-                  <dd className="mt-1 capitalize">
-                    {paginationResponse.pagination.strategy.replace('_', ' ')}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="font-semibold text-gray-900 dark:text-gray-100">Confidence</dt>
-                  <dd className="mt-1 capitalize">{paginationResponse.pagination.confidence}</dd>
-                </div>
-                {paginationResponse.pagination.selector && (
-                  <div className="md:col-span-2">
-                    <dt className="font-semibold text-gray-900 dark:text-gray-100">Selector</dt>
-                    <dd className="mt-1 font-mono text-xs break-words">
-                      {paginationResponse.pagination.selector}
-                    </dd>
-                  </div>
-                )}
-                {paginationResponse.pagination.hrefTemplate && (
-                  <div className="md:col-span-2">
-                    <dt className="font-semibold text-gray-900 dark:text-gray-100">Href Template</dt>
-                    <dd className="mt-1 font-mono text-xs break-words">
-                      {paginationResponse.pagination.hrefTemplate}
-                    </dd>
-                  </div>
-                )}
-              </dl>
+        <ExtractionStep
+          status={extractionStatus}
+          error={extractionError}
+          extractionResponse={extractionResponse}
+          reconResponse={reconResponse}
+          paginationResponse={paginationResponse}
+          planAvailable={Boolean(latestPlanRef.current)}
+          onRunExtraction={() =>
+            reconResponse && runExtraction(reconResponse, paginationResponse ?? null)
+          }
+        />
 
-              {paginationResponse.pagination.actions.length > 0 && (
-                <details>
-                  <summary className="cursor-pointer text-blue-600 dark:text-blue-400 text-xs">
-                    View recommended actions
-                  </summary>
-                  <pre className="mt-2 overflow-x-auto whitespace-pre-wrap bg-gray-50 dark:bg-gray-950 rounded-lg px-3 py-2 text-xs text-gray-800 dark:text-gray-200">
-{JSON.stringify(paginationResponse.pagination.actions, null, 2)}
-                  </pre>
-                </details>
-              )}
-
-              {paginationResponse.pagination.notes && (
-                <div>
-                  <h3 className="font-semibold text-gray-900 dark:text-gray-100">Notes</h3>
-                  <p className="mt-1 text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-                    {paginationResponse.pagination.notes}
-                  </p>
-                </div>
-              )}
-
-              {paginationResponse.reasoning && (
-                <details>
-                  <summary className="cursor-pointer text-blue-600 dark:text-blue-400 text-xs">
-                    View reasoning
-                  </summary>
-                  <p className="mt-2 text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-                    {paginationResponse.reasoning}
-                  </p>
-                </details>
-              )}
-
-              <details className="text-sm">
-                <summary className="cursor-pointer text-blue-600 dark:text-blue-400">
-                  View raw inference JSON
-                </summary>
-                <pre className="mt-2 overflow-x-auto whitespace-pre-wrap bg-gray-50 dark:bg-gray-950 rounded-lg px-3 py-2 text-xs text-gray-800 dark:text-gray-200">
-{JSON.stringify(paginationResponse, null, 2)}
-                </pre>
-              </details>
-            </div>
-          )}
-        </section>
+        <JobAssemblyStep
+          status={jobStatus}
+          error={jobError}
+          jobResponse={jobResponse}
+          hasExtraction={Boolean(extractionResponse)}
+          onRunJobAssembly={() =>
+            reconResponse &&
+            extractionResponse &&
+            runJobAssembly(reconResponse, paginationResponse ?? null, extractionResponse)
+          }
+        />
       </div>
     </section>
   );
 }
 
-function truncate(value: string, max: number): string {
-  if (value.length <= max) return value;
-  const half = Math.floor(max / 2);
-  const head = value.slice(0, half);
-  const tail = value.slice(-half);
-  return `${head}\n… [content truncated, total ${value.length} chars] …\n${tail}`;
-}
-
 const SUGGESTED_PROMPTS = [
   {
     label: 'Hacker News · 10 pages',
-    prompt:
-      'Scrape the first 10 pages of Hacker News, capturing title, score, author, and link.',
+    prompt: 'Scrape the first 10 pages of Hacker News, capturing title, score, author, and link.',
   },
   {
     label: 'Zendesk Apps · 3 pages',
@@ -478,5 +795,40 @@ const SUGGESTED_PROMPTS = [
     label: 'Amazon joggers · 2 pages',
     prompt:
       'Get the first 2 pages on Amazon for mens jogger pants, extracting product name, rating, price.',
+  },
+  {
+    label: 'Acquire.com · SaaS listings',
+    prompt:
+      'Scrape the SaaS marketplace on https://acquire.com/marketplace/saas, capturing company name, asking price, ARR, profit, and listing URL for the first 40 listings.',
+  },
+  {
+    label: 'Reuters · Markets feed',
+    prompt:
+      'Pull the latest items from https://www.reuters.com/markets/, capturing headline, summary, timestamp, author (if available), and article link.',
+  },
+  {
+    label: 'Product Hunt · Today',
+    prompt:
+      'Scrape today’s featured launches on https://www.producthunt.com/, capturing product name, tagline, vote count, maker names, and product URL.',
+  },
+  {
+    label: 'arXiv · ML papers',
+    prompt:
+      'Scrape the recent submissions list at https://arxiv.org/list/cs.LG/recent, capturing paper title, authors, submission date, abstract link, and PDF link.',
+  },
+  {
+    label: 'Indeed · Remote SWE',
+    prompt:
+      'Scrape the first 3 pages of https://www.indeed.com/jobs?q=remote+software+engineer&l=, capturing job title, company, location, posted date, and job URL.',
+  },
+  {
+    label: 'Etsy · Handmade jewelry',
+    prompt:
+      'Scrape the first 2 pages of https://www.etsy.com/search?q=handmade+jewelry, capturing listing title, price, seller, review count, and listing URL.',
+  },
+  {
+    label: 'Yelp · Seattle coffee',
+    prompt:
+      'Scrape the top Seattle coffee shops from https://www.yelp.com/search?find_desc=Coffee&find_loc=Seattle,+WA, capturing business name, rating, review count, neighborhood, and profile URL.',
   },
 ];

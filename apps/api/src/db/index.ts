@@ -21,12 +21,14 @@ export { schema };
 
 // Export types for convenience
 export type {
-  Scrape,
-  NewScrape,
-  Job,
-  NewJob,
-  Dataset,
-  NewDataset,
+  Run,
+  NewRun,
+  Plan,
+  NewPlan,
+  RunStep,
+  NewRunStep,
+  RunLog,
+  NewRunLog,
   Trace,
   NewTrace,
 } from './schema.js';

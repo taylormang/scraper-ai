@@ -1,22 +1,19 @@
 import { config } from '../config/index.js';
-import type { ScrapeRepository } from './scrapeRepository.js';
+import type { RunRepository } from './runRepository.js';
 import type { TraceRepository } from './traceRepository.js';
-import { PostgresScrapeRepository } from './postgresScrapeRepository.js';
-import { SqliteScrapeRepository } from './sqliteScrapeRepository.js';
+import { PostgresRunRepository } from './postgresRunRepository.js';
 import { PostgresTraceRepository } from './postgresTraceRepository.js';
 import { SqliteTraceRepository } from './sqliteTraceRepository.js';
 
-let scrapeRepository: ScrapeRepository | null = null;
+let runRepository: RunRepository | null = null;
 let traceRepository: TraceRepository | null = null;
 
-export function getScrapeRepository(): ScrapeRepository {
-  if (!scrapeRepository) {
-    scrapeRepository = config.database.url
-      ? new PostgresScrapeRepository()
-      : new SqliteScrapeRepository();
+export function getRunRepository(): RunRepository {
+  if (!runRepository) {
+    runRepository = new PostgresRunRepository();
   }
 
-  return scrapeRepository;
+  return runRepository;
 }
 
 export function getTraceRepository(): TraceRepository {
@@ -29,4 +26,4 @@ export function getTraceRepository(): TraceRepository {
   return traceRepository;
 }
 
-export type { ScrapeRepository, TraceRepository };
+export type { RunRepository, TraceRepository };

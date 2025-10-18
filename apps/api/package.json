@@ -12,7 +12,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "npx drizzle-kit@latest studio"
   },
   "dependencies": {
     "@mendable/firecrawl-js": "^4.4.1",

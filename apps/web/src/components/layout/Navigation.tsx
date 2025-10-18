@@ -1,5 +1,12 @@
 import Link from 'next/link';
 
+const NAV_LINKS = [
+  { href: '/runs', label: 'Runs' },
+  { href: '/datasets', label: 'Datasets' },
+  { href: '/traces', label: 'LLM Traces' },
+  { href: '/settings', label: 'Settings' },
+];
+
 export function Navigation() {
   return (
     <nav className="bg-white dark:bg-gray-950 shadow-sm border-b dark:border-gray-800">
@@ -12,36 +19,15 @@ export function Navigation() {
             >
               🌐 Scraper
             </Link>
-            <Link
-              href="/scrapes"
-              className="flex items-center text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
-            >
-              Scrapes
-            </Link>
-            <Link
-              href="/datasets"
-              className="flex items-center text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
-            >
-              Datasets
-            </Link>
-            <Link
-              href="/settings"
-              className="flex items-center text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
-            >
-              Settings
-            </Link>
-            <Link
-              href="/planner"
-              className="flex items-center text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
-            >
-              Planner Test
-            </Link>
-            <Link
-              href="/traces"
-              className="flex items-center text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
-            >
-              LLM Traces
-            </Link>
+            {NAV_LINKS.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className="flex items-center text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+              >
+                {link.label}
+              </Link>
+            ))}
           </div>
 
           <div className="flex items-center space-x-4">

@@ -30,7 +30,6 @@ const firecrawlScrapeOptionsSchema = z
 
 export const firecrawlCrawlConfigSchema = z.object({
     url: z.string().url(),
-    prompt: z.string().optional(),
     limit: z.number().int().positive().optional(),
     scrapeOptions: firecrawlScrapeOptionsSchema.optional(),
     includePaths: z.array(z.string()).optional(),

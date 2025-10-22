@@ -1,4 +1,4 @@
-import type { Run, Plan, RunStep, RunLog } from '../db/index.js';
+import type { Run, Plan, Recipe, RunStep, RunLog } from '../db/index.js';
 import { getRunRepository } from '../repositories/index.js';
 import type { RunRepository, UpdatePlanParams } from '../repositories/runRepository.js';
 import { PlannerService } from './planner.js';
@@ -6,6 +6,7 @@ import { ReconService, type ReconOutput } from './recon.js';
 import { PaginationInferenceService } from './pagination.js';
 import { ExtractionSchemaService } from './extraction.js';
 import { JobAssemblyService } from './jobAssembly.js';
+import { ExecutionService } from './execution.js';
 import { runEventBus } from './runEvents.js';
 import type {
   RunLogSeverityEnum,
@@ -40,7 +41,8 @@ export class RunPreparationService {
     private readonly recon: ReconService = new ReconService(),
     private readonly pagination: PaginationInferenceService = new PaginationInferenceService(),
     private readonly extraction: ExtractionSchemaService = new ExtractionSchemaService(),
-    private readonly jobAssembly: JobAssemblyService = new JobAssemblyService()
+    private readonly jobAssembly: JobAssemblyService = new JobAssemblyService(),
+    private readonly executionService: ExecutionService = new ExecutionService()
   ) {}
 
   async createRun(prompt: string): Promise<CreateRunResult> {
@@ -120,6 +122,21 @@ export class RunPreparationService {
       try {
         const parsed = new URL(value);
         return parsed.hostname || null;
+      } catch {
+        return null;
+      }
+    };
+
+    const normalizeBaseUrl = (value?: string | null): string | null => {
+      if (!value) {
+        return null;
+      }
+      try {
+        const parsed = new URL(value);
+        parsed.search = '';
+        parsed.hash = '';
+        const normalized = parsed.toString();
+        return normalized.endsWith('/') ? normalized.slice(0, -1) : normalized;
       } catch {
         return null;
       }
@@ -249,6 +266,7 @@ export class RunPreparationService {
 
     let planResponse: PlanResponse | null = null;
     let planRecord: Plan | null = null;
+    let recipeRecord: Recipe | null = null;
     let reconOutput: ReconOutput | null = null;
     let paginationOutput: PaginationInferenceResponse | null = null;
     let extractionOutput: ExtractionSchemaResponse | null = null;
@@ -278,14 +296,35 @@ export class RunPreparationService {
         confidence: planResponse.plan.confidence,
       });
 
+      const normalizedBaseUrl = normalizeBaseUrl(planResponse.plan.baseUrl);
+      const recipeSite =
+        deriveSite(normalizedBaseUrl) ??
+        deriveSite(planResponse.plan.baseUrl) ??
+        'unknown';
+
+      if (normalizedBaseUrl) {
+        recipeRecord =
+          (await this.runRepository.findRecipeByBaseUrl(normalizedBaseUrl)) ??
+          (await this.runRepository.createRecipe({
+            site: recipeSite,
+            baseUrl: normalizedBaseUrl,
+          }));
+      }
+
       planRecord = await this.runRepository.createPlan({
-        runId,
+        recipeId: recipeRecord?.id ?? null,
         prompt,
         objective: planResponse.plan.objective,
         baseUrl: planResponse.plan.baseUrl,
-        site: deriveSite(planResponse.plan.baseUrl),
+        startingUrl: planResponse.plan.baseUrl,
+        site: deriveSite(planResponse.plan.baseUrl) ?? recipeSite,
         reasoning: planResponse.reasoning,
         model: 'gpt-4o-mini',
+        paginationOverrides: planResponse.plan.pagination,
+      });
+
+      await this.runRepository.updateRun(runId, {
+        planId: planRecord.id,
       });
 
       runEventBus.publish(runId, {
@@ -442,6 +481,16 @@ export class RunPreparationService {
         pagination: paginationOutput.pagination,
         reasoning: paginationOutput.reasoning,
       });
+
+      if (recipeRecord) {
+        try {
+          recipeRecord = await this.runRepository.updateRecipe(recipeRecord.id, {
+            pagination: paginationOutput.pagination,
+          });
+        } catch (error) {
+          console.error('[RunPreparationService] Failed to persist recipe pagination', error);
+        }
+      }
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Pagination inference failed';
@@ -624,6 +673,8 @@ export class RunPreparationService {
           completedAt: new Date().toISOString(),
         },
       },
+      paginationOverrides: finalPlan.plan.pagination,
+      recipeId: recipeRecord?.id ?? planRecord?.recipeId ?? null,
     });
 
     const summary: RunSummary = {
@@ -641,9 +692,19 @@ export class RunPreparationService {
       jobSchema: jobOutput?.schema ?? null,
     };
 
-    await finalizeRun('completed', {
-      summary,
-    });
+    if (planRecord) {
+      await this.executionService.startFirecrawlExecution({
+        runId,
+        planId: planRecord.id,
+        config: jobOutput?.crawlConfig as Record<string, unknown>,
+        metadata: {
+          warnings: jobOutput?.warnings ?? [],
+        },
+        initialSummary: summary as Record<string, unknown>,
+      });
+    } else {
+      console.warn('[RunPreparationService] Plan record missing before execution start');
+    }
   }
 
   private async buildStepIndex(runId: string): Promise<StepContextMap> {

@@ -31,6 +31,14 @@ export type {
   NewRunLog,
   Trace,
   NewTrace,
+  Recipe,
+  NewRecipe,
+  Execution,
+  NewExecution,
+  ExecutionLog,
+  NewExecutionLog,
+  ExecutionArtifact,
+  NewExecutionArtifact,
 } from './schema.js';
 
 // Health check function

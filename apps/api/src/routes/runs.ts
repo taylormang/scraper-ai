@@ -2,7 +2,15 @@ import { Router, type Response } from 'express';
 import { z } from 'zod';
 import { RunPreparationService } from '../services/runPreparation.js';
 import { runEventBus } from '../services/runEvents.js';
-import type { Run, Plan, RunStep, RunLog } from '../db/index.js';
+import type {
+  Run,
+  Plan,
+  Recipe,
+  RunStep,
+  RunLog,
+  Execution,
+  ExecutionLog,
+} from '../db/index.js';
 import { ApiError, type ApiResponse } from '../types/index.js';
 
 const router = Router();
@@ -62,10 +70,9 @@ router.get('/', async (req, res, next) => {
         runs: rows.map((row) => ({
           ...serializeRun(row.run),
           planStatus: row.plan?.status ?? null,
-          site: row.plan?.site ?? null,
-          startUrl:
-            (row.plan?.pagination as { start_url?: string } | null | undefined)?.start_url ??
-            row.plan?.baseUrl ?? null,
+          recipeId: row.plan?.recipeId ?? null,
+          site: row.recipe?.site ?? row.plan?.site ?? null,
+          startUrl: row.plan?.startingUrl ?? row.plan?.baseUrl ?? row.recipe?.baseUrl ?? null,
           objective: row.plan?.objective ?? null,
         })),
       },
@@ -89,7 +96,14 @@ router.get('/:id', async (req, res, next) => {
 
     const response: ApiResponse = {
       success: true,
-      data: serializeRunDetail(record.run, record.plan, record.steps, record.logs),
+      data: serializeRunDetail(
+        record.run,
+        record.plan,
+        record.recipe,
+        record.steps,
+        record.logs,
+        record.executions
+      ),
       timestamp: new Date().toISOString(),
     };
 
@@ -138,7 +152,14 @@ router.get('/:id/stream', async (req, res, next) => {
     res.setHeader('Connection', 'keep-alive');
     res.flushHeaders?.();
 
-    const initialPayload = serializeRunDetail(run.run, run.plan, run.steps, run.logs);
+    const initialPayload = serializeRunDetail(
+      run.run,
+      run.plan,
+      run.recipe,
+      run.steps,
+      run.logs,
+      run.executions
+    );
     writeEvent(res, 'run.snapshot', initialPayload);
 
     const sendHeartbeat = () => res.write(':heartbeat\n\n');
@@ -157,6 +178,20 @@ router.get('/:id/stream', async (req, res, next) => {
           break;
         case 'run.log.appended':
           writeEvent(res, 'run.log', serializeLog(event.log), String(event.log.sequence));
+          break;
+        case 'run.execution.created':
+          writeEvent(res, 'run.execution', serializeExecution(event.execution));
+          break;
+        case 'run.execution.updated':
+          writeEvent(res, 'run.execution', serializeExecution(event.execution));
+          break;
+        case 'run.execution.log':
+          writeEvent(
+            res,
+            'run.execution.log',
+            serializeExecutionLog(event.log),
+            String(event.log.sequence)
+          );
           break;
         default:
           break;
@@ -193,22 +228,40 @@ function serializePlan(plan: Plan | null) {
 
   return {
     id: plan.id,
-    runId: plan.runId,
+    recipeId: plan.recipeId ?? null,
     status: plan.status,
     error: plan.error ?? null,
     prompt: plan.prompt,
     site: plan.site ?? null,
     objective: plan.objective ?? null,
     baseUrl: plan.baseUrl ?? null,
+    startingUrl: plan.startingUrl ?? null,
     reasoning: plan.reasoning ?? null,
     sample: plan.sample ?? null,
     schema: plan.schema ?? null,
     pagination: plan.pagination ?? null,
     config: plan.config ?? null,
     meta: plan.meta ?? null,
+    paginationOverrides: plan.paginationOverrides ?? null,
     model: plan.model ?? null,
     createdAt: plan.createdAt.toISOString(),
     updatedAt: plan.updatedAt.toISOString(),
+  };
+}
+
+function serializeRecipe(recipe: Recipe | null) {
+  if (!recipe) {
+    return null;
+  }
+
+  return {
+    id: recipe.id,
+    site: recipe.site,
+    baseUrl: recipe.baseUrl,
+    pagination: recipe.pagination ?? null,
+    metadata: recipe.metadata ?? null,
+    createdAt: recipe.createdAt.toISOString(),
+    updatedAt: recipe.updatedAt.toISOString(),
   };
 }
 
@@ -239,17 +292,55 @@ function serializeLog(log: RunLog) {
   };
 }
 
+function serializeExecution(execution: Execution) {
+  return {
+    id: execution.id,
+    runId: execution.runId,
+    planId: execution.planId ?? null,
+    engine: execution.engine,
+    status: execution.status,
+    config: execution.config,
+    result: execution.result ?? null,
+    error: execution.error ?? null,
+    metadata: execution.metadata ?? null,
+    startedAt: execution.startedAt ? execution.startedAt.toISOString() : null,
+    completedAt: execution.completedAt ? execution.completedAt.toISOString() : null,
+    createdAt: execution.createdAt.toISOString(),
+    updatedAt: execution.updatedAt.toISOString(),
+  };
+}
+
+function serializeExecutionLog(log: ExecutionLog) {
+  return {
+    id: log.id,
+    executionId: log.executionId,
+    runId: log.runId,
+    sequence: Number(log.sequence),
+    severity: log.severity,
+    message: log.message,
+    payload: log.payload ?? null,
+    createdAt: log.createdAt.toISOString(),
+  };
+}
+
 function serializeRunDetail(
   run: Run,
   plan: Plan | null,
+  recipe: Recipe | null,
   steps: RunStep[],
-  logs: RunLog[]
+  logs: RunLog[],
+  executions: { execution: Execution; logs: ExecutionLog[] }[] = []
 ) {
   return {
     ...serializeRun(run),
     plan: serializePlan(plan),
+    recipe: serializeRecipe(recipe),
     steps: steps.map(serializeStep),
     logs: logs.map(serializeLog),
+    executions: executions.map((item) => ({
+      ...serializeExecution(item.execution),
+      logs: item.logs.map(serializeExecutionLog),
+    })),
   };
 }
 

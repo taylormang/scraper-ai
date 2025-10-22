@@ -1,11 +1,14 @@
 import { EventEmitter } from 'node:events';
-import type { Run, Plan, RunStep, RunLog } from '../db/index.js';
+import type { Run, Plan, RunStep, RunLog, Execution, ExecutionLog } from '../db/index.js';
 
 export type RunEvent =
   | { type: 'run.updated'; run: Run }
   | { type: 'run.plan.updated'; plan: Plan }
   | { type: 'run.step.updated'; step: RunStep }
-  | { type: 'run.log.appended'; log: RunLog };
+  | { type: 'run.log.appended'; log: RunLog }
+  | { type: 'run.execution.created'; execution: Execution }
+  | { type: 'run.execution.updated'; execution: Execution }
+  | { type: 'run.execution.log'; log: ExecutionLog };
 
 type RunEventListener = (event: RunEvent) => void;
 

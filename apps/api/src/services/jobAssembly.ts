@@ -49,7 +49,6 @@ export class JobAssemblyService {
 
     const crawlConfig: FirecrawlCrawlConfig = {
       url: plan.baseUrl,
-      prompt: extraction.refinedPrompt,
       scrapeOptions: {
         formats: [
           'markdown',
@@ -59,7 +58,9 @@ export class JobAssemblyService {
             prompt: extraction.refinedPrompt,
           },
         ],
-        actions: pagination?.pagination.actions?.length ? pagination.pagination.actions : undefined,
+        // Note: Don't include pagination actions for crawl jobs
+        // Firecrawl's crawl endpoint automatically discovers and follows links
+        // Actions are only for interactive scraping within a single page
         waitFor: 5000,
         timeout: 90000,
         onlyMainContent: false,

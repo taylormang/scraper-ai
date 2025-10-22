@@ -17,6 +17,13 @@ export type RunLogSeverityEnum = 'info' | 'warning' | 'error' | 'debug';
 
 export type PlanStatusEnum = 'planning' | 'completed' | 'failed';
 
+export type ExecutionStatusEnum =
+  | 'queued'
+  | 'running'
+  | 'completed'
+  | 'failed'
+  | 'cancelled';
+
 export interface RunSummary {
   [key: string]: unknown;
 }
@@ -33,6 +40,7 @@ export interface RunListResponseItem {
   site?: string | null;
   startUrl?: string | null;
   objective?: string | null;
+  recipeId?: string | null;
   runSummary?: RunSummary | null;
 }
 
@@ -75,16 +83,56 @@ export interface RunDetailResponse {
     site?: string | null;
     objective?: string | null;
     baseUrl?: string | null;
+    startingUrl?: string | null;
     reasoning?: string | null;
     sample?: unknown;
     schema?: unknown;
     pagination?: unknown;
     config?: unknown;
     meta?: unknown;
+    paginationOverrides?: unknown;
+    recipeId?: string | null;
     model?: string | null;
     createdAt: string;
     updatedAt: string;
   } | null;
+  recipe: {
+    id: string;
+    site: string;
+    baseUrl: string;
+    pagination?: unknown;
+    metadata?: unknown;
+    createdAt: string;
+    updatedAt: string;
+  } | null;
+  executions: ExecutionDetail[];
   steps: RunDetailStep[];
   logs: RunDetailLog[];
+}
+
+export interface ExecutionDetail {
+  id: string;
+  runId: string;
+  planId?: string | null;
+  engine: string;
+  status: ExecutionStatusEnum;
+  config: unknown;
+  result?: unknown;
+  error?: string | null;
+  metadata?: unknown;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  logs: ExecutionLog[];
+}
+
+export interface ExecutionLog {
+  id: string;
+  executionId: string;
+  sequence: number;
+  severity: RunLogSeverityEnum;
+  message: string;
+  payload?: unknown;
+  createdAt: string;
 }

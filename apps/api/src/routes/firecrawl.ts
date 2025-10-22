@@ -1,0 +1,163 @@
+import { Router } from 'express';
+import { z } from 'zod';
+import Firecrawl from '@mendable/firecrawl-js';
+import { config } from '../config/index.js';
+import { ApiError, type ApiResponse } from '../types/index.js';
+
+const router = Router();
+
+const crawlRequestSchema = z.object({
+  url: z.string().url('Invalid URL'),
+  limit: z.number().int().positive().optional(),
+  prompt: z.string().optional(),
+});
+
+router.post('/crawl', async (req, res, next) => {
+  try {
+    const parsed = crawlRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      throw new ApiError(parsed.error.errors[0].message, 400, 'VALIDATION_ERROR');
+    }
+
+    const { url, limit, prompt } = parsed.data;
+
+    if (!config.services.firecrawl) {
+      throw new ApiError('FIRECRAWL_API_KEY not configured', 500, 'CONFIG_ERROR');
+    }
+
+    const firecrawl = new Firecrawl({ apiKey: config.services.firecrawl });
+
+    // Build crawl options
+    const crawlOptions: Record<string, unknown> = {};
+
+    if (limit) {
+      crawlOptions.limit = limit;
+    }
+
+    // Basic scrape options
+    crawlOptions.scrapeOptions = {
+      formats: ['markdown', 'html'],
+    };
+
+    // Add JSON extraction if prompt provided
+    if (prompt) {
+      (crawlOptions.scrapeOptions as Record<string, unknown>).formats = [
+        'markdown',
+        'html',
+        {
+          type: 'json',
+          prompt,
+        },
+      ];
+    }
+
+    console.log('[Firecrawl] Starting crawl:', { url, ...crawlOptions });
+
+    // Call Firecrawl
+    const result = await firecrawl.crawl(url, crawlOptions as any);
+
+    console.log('[Firecrawl] Crawl completed:', {
+      status: result.status,
+      completed: result.completed,
+      total: result.total,
+    });
+
+    const response: ApiResponse = {
+      success: true,
+      data: result,
+      timestamp: new Date().toISOString(),
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error('[Firecrawl] Error:', error);
+    next(error);
+  }
+});
+
+// Hardcoded scrape configuration (will be generated from prompt later)
+const scrapeConfig = {
+  url: 'https://news.ycombinator.com/',
+  extractionPrompt: 'Fetch all news posts, extracting the title, author, link, comment link, comment count, date, and any other relevant fields',
+  actions: [
+    { type: 'wait', milliseconds: 2000 },
+    { type: 'scrape' },
+    { type: 'click', selector: 'a.morelink' },
+    { type: 'wait', milliseconds: 2000 },
+    { type: 'scrape' },
+    { type: 'click', selector: 'a.morelink' },
+    { type: 'wait', milliseconds: 2000 },
+    { type: 'scrape' },
+  ],
+};
+
+// Schema for scrape request
+const scrapeRequestSchema = z.object({
+  prompt: z.string().optional(), // UI will pass a prompt that we'll process
+});
+
+// Phase 1: List scraping with actions
+// TODO: Add intelligent processing layer to convert prompt -> scrapeConfig
+router.post('/scrape', async (req, res, next) => {
+  try {
+    const parsed = scrapeRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      throw new ApiError(parsed.error.errors[0].message, 400, 'VALIDATION_ERROR');
+    }
+
+    const { prompt } = parsed.data;
+
+    if (!config.services.firecrawl) {
+      throw new ApiError('FIRECRAWL_API_KEY not configured', 500, 'CONFIG_ERROR');
+    }
+
+    const firecrawl = new Firecrawl({ apiKey: config.services.firecrawl });
+
+    // TODO: Process prompt to generate scrapeConfig intelligently
+    // For now, using hardcoded scrapeConfig
+    const firecrawlConfig = {
+      url: scrapeConfig.url,
+      formats: [
+        {
+          type: 'json',
+          prompt: scrapeConfig.extractionPrompt,
+        },
+      ],
+      actions: scrapeConfig.actions,
+    };
+
+    console.log('[Firecrawl] Starting scrape with actions:', {
+      userPrompt: prompt,
+      url: scrapeConfig.url,
+      actionsCount: scrapeConfig.actions.length,
+    });
+
+    // Execute the scrape
+    const result = await firecrawl.scrape(firecrawlConfig.url, {
+      formats: firecrawlConfig.formats,
+      actions: firecrawlConfig.actions,
+    } as any);
+
+    console.log('[Firecrawl] Scrape completed:', {
+      success: result.success,
+      actionsCompleted: result.actions?.length || 0,
+    });
+
+    const response: ApiResponse = {
+      success: true,
+      data: {
+        userPrompt: prompt,
+        config: firecrawlConfig,
+        result: result,
+      },
+      timestamp: new Date().toISOString(),
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error('[Firecrawl] Error:', error);
+    next(error);
+  }
+});
+
+export default router;

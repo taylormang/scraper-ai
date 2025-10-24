@@ -5,11 +5,15 @@ import tracesRoutes from './traces.js';
 import runsRoutes from './runs.js';
 import plansRoutes from './plans.js';
 import firecrawlRoutes from './firecrawl.js';
+import sourcesRoutes from './sources.js';
 
 const router = Router();
 
 // Mount health routes
 router.use('/', healthRoutes);
+
+// Source management routes
+router.use('/sources', sourcesRoutes);
 
 // Direct Firecrawl test endpoint
 router.use('/firecrawl', firecrawlRoutes);

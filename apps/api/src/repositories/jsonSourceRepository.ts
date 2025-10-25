@@ -2,9 +2,8 @@ import fs from 'fs/promises';
 import path from 'path';
 import { nanoid } from 'nanoid';
 import type { Source } from '../types/source.js';
-import type { SourceRepository } from './sourceRepository.js';
 
-export class JsonSourceRepository implements SourceRepository {
+export class JsonSourceRepository {
   private dataDir: string;
   private sourcesFile: string;
 

@@ -2,12 +2,11 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { nanoid } from 'nanoid';
 import type { Recipe } from '../types/recipe.js';
-import type { RecipeRepository } from './recipeRepository.js';
 
 const DATA_DIR = path.join(process.cwd(), 'data', 'recipes');
 const RECIPES_FILE = path.join(DATA_DIR, 'recipes.json');
 
-export class JsonRecipeRepository implements RecipeRepository {
+export class JsonRecipeRepository {
   private async ensureDataDir(): Promise<void> {
     await fs.mkdir(DATA_DIR, { recursive: true });
   }

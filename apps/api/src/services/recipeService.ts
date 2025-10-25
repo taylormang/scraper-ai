@@ -1,8 +1,8 @@
 import { config } from '../config/index.js';
 import type { Recipe } from '../types/recipe.js';
 import type { Source } from '../types/source.js';
-import type { RecipeRepository } from '../repositories/recipeRepository.js';
-import type { SourceRepository } from '../repositories/sourceRepository.js';
+import type { JsonRecipeRepository } from '../repositories/jsonRecipeRepository.js';
+import type { JsonSourceRepository } from '../repositories/jsonSourceRepository.js';
 import { analyzeRecipePrompt, compileRecipeEngineConfig } from './recipe/index.js';
 import { executeSourceWorkflow } from './source/index.js';
 import { createSourceFromUrl } from './sourceService.js';
@@ -10,8 +10,8 @@ import { createSourceFromUrl } from './sourceService.js';
 export interface CreateRecipeFromPromptInput {
   prompt: string;
   user_id: string;
-  recipeRepository: RecipeRepository;
-  sourceRepository: SourceRepository;
+  recipeRepository: JsonRecipeRepository;
+  sourceRepository: JsonSourceRepository;
 }
 
 export interface CreateRecipeFromPromptResult {
@@ -147,8 +147,10 @@ export async function createRecipeFromPrompt(
 
   await sourceRepository.update(source.id, {
     usage_stats: {
-      ...source.usage_stats,
       recipe_count: (source.usage_stats?.recipe_count || 0) + 1,
+      total_scrapes: source.usage_stats?.total_scrapes || 0,
+      last_used: source.usage_stats?.last_used,
+      avg_items_per_page: source.usage_stats?.avg_items_per_page,
     },
   });
 

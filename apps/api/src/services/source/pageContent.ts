@@ -32,7 +32,6 @@ export async function fetchPageContent(
   }
 
   console.log('[PageContent] Firecrawl result:', {
-    success: result.success,
     hasMarkdown: !!result.markdown,
     hasHtml: !!result.html,
     markdownLength: result.markdown?.length || 0,

@@ -17,6 +17,8 @@ export function ScrapeTriggerForm() {
   const [state, setState] = useState<FormState>('idle');
   const [message, setMessage] = useState<string | null>(null);
   const [scrapeId, setScrapeId] = useState<string | null>(null);
+  const [responseData, setResponseData] = useState<unknown>(null);
+  const [isAccordionOpen, setIsAccordionOpen] = useState(false);
 
   const parsePositiveInt = (value: string, label: string): number | null => {
     if (!value) return null;
@@ -58,6 +60,8 @@ export function ScrapeTriggerForm() {
     event.preventDefault();
     setMessage(null);
     setScrapeId(null);
+    setResponseData(null);
+    setIsAccordionOpen(false);
 
     if (!url.trim()) {
       setState('error');
@@ -77,11 +81,12 @@ export function ScrapeTriggerForm() {
         body.prompt = trimmedPrompt;
       }
 
-      if (paginationPayload) {
-        body.pagination = paginationPayload;
+      // Use maxPages from pagination as limit
+      if (paginationPayload && typeof paginationPayload.maxPages === 'number') {
+        body.limit = paginationPayload.maxPages;
       }
 
-      const response = await fetch(`${baseUrl}/api/scrapes`, {
+      const response = await fetch(`${baseUrl}/api/firecrawl/crawl`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -89,27 +94,20 @@ export function ScrapeTriggerForm() {
         body: JSON.stringify(body),
       });
 
-      const json = (await response.json()) as ApiResponse<ScrapeResultPayload>;
+      const json = await response.json();
 
-      if (!response.ok || !json.success || !json.data) {
+      if (!response.ok || !json.success) {
         const errorMessage =
-          json.error?.message || `Failed to start scrape (status ${response.status})`;
+          json.error?.message || `Failed to start crawl (status ${response.status})`;
         throw new Error(errorMessage);
       }
 
-      if (json.data.success !== true) {
-        throw new Error(
-          json.data.error ??
-            json.data.message ??
-            'Scrape request accepted but failed to start. Check the Scrapes page for details.'
-        );
-      }
-
-      const result = json.data;
-
       setState('success');
-      setScrapeId(result.id);
-      setMessage('Scrape started successfully. Check the scrapes page for JSON and markdown outputs.');
+      setMessage(
+        `Crawl completed! Status: ${json.data.status}, Pages: ${json.data.completed}/${json.data.total}`
+      );
+      setScrapeId(json.data.id || 'N/A');
+      setResponseData(json);
       setUrl('https://example.com');
       setPrompt('');
       setAutoPaginate(true);
@@ -265,6 +263,37 @@ export function ScrapeTriggerForm() {
                 >
                   View details →
                 </Link>
+              </div>
+            )}
+            {state === 'success' && responseData && (
+              <div className="mt-4 border-t border-green-200 dark:border-green-900 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setIsAccordionOpen(!isAccordionOpen)}
+                  className="flex items-center justify-between w-full text-left text-sm font-medium hover:underline"
+                >
+                  <span>Full Response</span>
+                  <svg
+                    className={`w-4 h-4 transition-transform ${
+                      isAccordionOpen ? 'rotate-180' : ''
+                    }`}
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 9l-7 7-7-7"
+                    />
+                  </svg>
+                </button>
+                {isAccordionOpen && (
+                  <pre className="mt-3 p-3 bg-white/60 dark:bg-black/40 rounded border border-green-200 dark:border-green-900 overflow-x-auto text-xs">
+                    <code>{JSON.stringify(responseData, null, 2)}</code>
+                  </pre>
+                )}
               </div>
             )}
           </div>

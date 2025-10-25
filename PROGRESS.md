@@ -11,26 +11,36 @@ The project is now positioned as an **AI-Native Web Intelligence Platform** - no
 - End User Experience: Conversational data gathering with zero technical friction
 
 ## Last Completed Step
-- **Development Tooling**: Set up `concurrently` for running all apps together with colored, prefixed logs (`npm run dev:all`). Updated all documentation (PROGRESS.md, README.md, CLAUDE.md, API README).
+- **Field Extraction & Storage**: Structured data extraction and storage system
+  - Created FieldExtractionService using OpenAI for field extraction
+  - Extracts structured JSON data based on Recipe field definitions
+  - Integrated field extraction into RecipeExecutionService
+  - Dataset items now store extracted structured data (not raw HTML/markdown)
+  - Optional raw content storage via `include_raw_content` flag
+  - Type coercion and default value handling for all field types
+  - Complete flow: Scrape → Firecrawl → Extract Fields → Store JSON → Query via MCP
 
 ## Current/Next Step
-- **Data Persistence**: Store scrape results in PostgreSQL database with Drizzle ORM
-  - Add database models for scrapes/runs
-  - Record each scrape execution
-  - Store results with metadata
-  - Create basic query endpoints
+- **Ready for Testing**: End-to-end scraping with persistent storage
+  - Test the full flow: "scrape hackernews" → creates Dataset → view with `list_datasets`
+  - Verify data persistence across API server restarts
+  - Test dataset item pagination and retrieval
 
 ## Next 2 Planned Steps
-1. **Database Models & Recording**: Create Drizzle schema for scrape runs, store each execution with results and metadata
-2. **Query Endpoints**: Add GET endpoints to retrieve scrape history and results
+1. **Field Extraction**: Extract structured fields from scraped content based on Recipe field definitions
+2. **Data Export**: Add endpoints and MCP tools to export datasets in various formats (JSON, CSV, etc.)
 
 ## Infrastructure Completed (Phase 1)
 - ✅ **Monorepo Setup**: npm workspaces with apps/ and packages/ structure
-- ✅ **MCP Server**: Full integration with `scrape_url` tool calling API server
+- ✅ **MCP Server**: Full integration with Source, Recipe, Execution, and Dataset tools
 - ✅ **Web Application**: Next.js 14 dashboard with datasets, settings pages, and dark mode
 - ✅ **API Server**: Express REST API with health endpoints, error handling, and TypeScript
 - ✅ **Scraping Engine**: Firecrawl integration with POST `/api/scrapes` endpoint (functional and tested)
-- ✅ **End-to-End Flow**: Claude Desktop → MCP → API → Firecrawl → Results (working!)
+- ✅ **Source Management**: AI-powered source analysis with pagination detection and content structure
+- ✅ **Recipe System**: Natural language recipe creation with field extraction and pagination config
+- ✅ **Execution System**: Recipe execution orchestration with progress tracking and logging
+- ✅ **Dataset Storage**: Persistent storage for scraped data with pagination and querying
+- ✅ **End-to-End Flow**: Claude Desktop → MCP → API → Firecrawl → Dataset (working!)
 - ✅ **Development Tooling**: `npm run dev:all` with concurrently for colored, prefixed logs
 - ✅ **Build Pipeline**: TypeScript compilation, hot reload, and type checking across all packages
 - ✅ **Documentation**: Product vision, technical architecture, and implementation tickets
@@ -67,11 +77,28 @@ The project is now positioned as an **AI-Native Web Intelligence Platform** - no
 
 **Available for Testing**:
 - **All Apps Together**: `npm run dev:all` → Runs API + Web with prefixed logs
-- **MCP Server**: Configured in Claude Desktop with `scrape_url` tool
+- **MCP Server**: Configured in Claude Desktop with comprehensive tools:
+  - `scrape` - **⭐ Smart scraping** - finds/creates recipe and executes (try "scrape hackernews")
+  - `scrape_url` - Quick single-page scraping
+  - `create_recipe` - Natural language recipe creation
+  - `list_recipes` / `get_recipe` - Recipe management
+  - `execute_recipe` - Start recipe execution
+  - `list_executions` / `get_execution` - Monitor executions
+  - `list_datasets` / `get_dataset` - View stored scraping results
+  - `list_sources` / `get_source` - View analyzed sources
 - **API Server**: `npm run dev:api` → http://localhost:3001
   - GET `/api/health` - Health check
-  - POST `/api/scrapes` - Scrape any URL (requires FIRECRAWL_API_KEY)
-  - GET `/api/scrapes/health` - Check scraper configuration
+  - POST `/api/scrapes` - Quick scrape
+  - POST `/api/recipes` - Create recipe from natural language
+  - GET `/api/recipes` - List all recipes
+  - **POST `/api/recipes/:id/execute`** - Execute recipe and get data immediately
+  - POST `/api/executions` - Execute a recipe (async)
+  - GET `/api/executions` - List all executions
+  - GET `/api/executions/:id` - Get execution details with logs
+  - GET `/api/datasets` - List all datasets
+  - GET `/api/datasets/:id` - Get dataset details
+  - GET `/api/datasets/:id/items` - Get dataset items with pagination
+  - GET `/api/sources` - List analyzed sources
 - **Web App**: `npm run dev:web` → http://localhost:3000
 
 **How to Use**:
@@ -81,21 +108,28 @@ The project is now positioned as an **AI-Native Web Intelligence Platform** - no
    npm run dev:all  # Runs API + Web with colored, prefixed logs
    ```
 
-2. **Via Claude Desktop** (natural language):
-   - In Claude Desktop, just ask: "Can you scrape https://example.com for me?"
-   - Claude will use the `scrape_url` tool automatically
+2. **Via Claude Desktop** (recommended):
+   - Just say: **"scrape hackernews"** or **"scrape 10 pages of Hacker News"**
+   - Claude will automatically find/create a recipe and return the data!
+   - For one-off scraping: "scrape https://example.com"
 
 3. **Via API** (direct):
    ```bash
-   curl -X POST http://localhost:3001/api/scrapes \
+   # Execute a recipe and get data immediately
+   curl -X POST http://localhost:3001/api/recipes/{recipe_id}/execute \
      -H "Content-Type: application/json" \
-     -d '{"url": "https://example.com"}'
+     -d '{"user_id": "default_user"}'
    ```
 
 **What Works**:
-- ✅ Scrape any public URL
-- ✅ Returns markdown + HTML content
-- ✅ Metadata extraction (title, description, language)
-- ✅ Full integration: Claude Desktop → MCP → API → Firecrawl
+- ✅ Quick single-page scraping with `scrape_url`
+- ✅ Natural language recipe creation from prompts
+- ✅ AI-powered source analysis (pagination, content structure)
+- ✅ Recipe execution with Firecrawl engine
+- ✅ AI-powered field extraction (OpenAI extracts structured data from content)
+- ✅ Real-time execution progress tracking with logs
+- ✅ Persistent dataset storage with structured JSON data
+- ✅ Dataset querying and pagination via MCP
+- ✅ Full integration: Claude Desktop → MCP → Recipe → Execution → Firecrawl → Extract → Dataset
 
 See `/docs/tickets/api-server.md` for roadmap and implementation details.

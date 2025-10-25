@@ -1,0 +1,22 @@
+### Test Scraper - Create Source and Scrape (uses hardcoded URL)
+POST http://localhost:3001/api/firecrawl/scrape
+Content-Type: application/json
+
+{
+  "prompt": "Scrape 3 pages of HackerNews"
+}
+
+### Test Scraper - Second call (should reuse existing Source)
+POST http://localhost:3001/api/firecrawl/scrape
+Content-Type: application/json
+
+{}
+
+### Test existing crawl endpoint (for comparison)
+POST http://localhost:3001/api/firecrawl/crawl
+Content-Type: application/json
+
+{
+  "url": "https://example.com",
+  "limit": 1
+}

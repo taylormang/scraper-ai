@@ -6,6 +6,9 @@ import runsRoutes from './runs.js';
 import plansRoutes from './plans.js';
 import firecrawlRoutes from './firecrawl.js';
 import sourcesRoutes from './sources.js';
+import recipesRoutes from './recipes.js';
+import executionsRoutes from './executions.js';
+import datasetsRoutes from './datasets.js';
 
 const router = Router();
 
@@ -14,6 +17,15 @@ router.use('/', healthRoutes);
 
 // Source management routes
 router.use('/sources', sourcesRoutes);
+
+// Recipe management routes
+router.use('/recipes', recipesRoutes);
+
+// Execution routes
+router.use('/executions', executionsRoutes);
+
+// Dataset routes
+router.use('/datasets', datasetsRoutes);
 
 // Direct Firecrawl test endpoint
 router.use('/firecrawl', firecrawlRoutes);

@@ -1,0 +1,29 @@
+### Create Recipe from natural language prompt - HN (10 pages)
+POST http://localhost:3001/api/recipes
+Content-Type: application/json
+
+{
+  "prompt": "Scrape the first 10 pages of Hacker News, get the title, author, link, and comment count",
+  "user_id": "test_user_1"
+}
+
+### Create Recipe - Amazon laptops (3 pages)
+POST http://localhost:3001/api/recipes
+Content-Type: application/json
+
+{
+  "prompt": "Get 3 pages of laptop listings from amazon.com/s?k=laptops - I need name, price, and rating",
+  "user_id": "test_user_1"
+}
+
+### Get all Recipes
+GET http://localhost:3001/api/recipes
+
+### Get Recipes for specific user
+GET http://localhost:3001/api/recipes?user_id=test_user_1
+
+### Get Recipe by ID (replace with actual ID after creating)
+GET http://localhost:3001/api/recipes/recipe_abc123
+
+### Delete Recipe by ID
+DELETE http://localhost:3001/api/recipes/recipe_abc123

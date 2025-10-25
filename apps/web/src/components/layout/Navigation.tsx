@@ -2,6 +2,7 @@ import Link from 'next/link';
 
 const NAV_LINKS = [
   { href: '/runs', label: 'Runs' },
+  { href: '/plans', label: 'Plans' },
   { href: '/datasets', label: 'Datasets' },
   { href: '/traces', label: 'LLM Traces' },
   { href: '/settings', label: 'Settings' },

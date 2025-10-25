@@ -1,0 +1,40 @@
+### Create Source for HackerNews
+POST http://localhost:3001/api/sources
+Content-Type: application/json
+
+{
+  "url": "https://news.ycombinator.com/news"
+}
+
+### Rebuild existing Source (triggers AI workflow, preserves usage_stats)
+POST http://localhost:3001/api/sources
+Content-Type: application/json
+
+{
+  "url": "https://news.ycombinator.com/news",
+  "rebuild": true
+}
+
+### "Load_More" site
+POST http://localhost:3001/api/sources
+Content-Type: application/json
+
+{
+  "url": "https://www.youtube.com/results?search_query=andrej+karpathy+ai",
+  "rebuild": true
+}
+
+### Inifinite scroll site
+POST http://localhost:3001/api/sources
+Content-Type: application/json
+
+{
+  "url": "https://www.twitch.tv/",
+  "rebuild": true
+}
+
+### List all Sources
+GET http://localhost:3001/api/sources
+
+### Get Source by ID (replace with actual ID from creation)
+GET http://localhost:3001/api/sources/source_abc123

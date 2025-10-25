@@ -4,7 +4,15 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { getApiBaseUrl } from '@/lib/config';
 import { RunStatusBadge } from '@/components/runs/RunStatusBadge';
 import { ScrapeThoughtLog } from '@/components/scrapes/ScrapeThoughtLog';
-import type { RunDetail, RunLog, RunPlan, RunStep } from '@/types/run';
+import type {
+  ExecutionDetail,
+  ExecutionLog,
+  RecipeSummary,
+  RunDetail,
+  RunLog,
+  RunPlan,
+  RunStep,
+} from '@/types/run';
 import type { WorkflowLog, ThoughtEntry } from '@/types/scrape';
 
 interface RunDetailClientProps {
@@ -47,6 +55,48 @@ export function RunDetailClient({ initial, runId }: RunDetailClientProps) {
       }));
     };
 
+    const handleExecution = (event: MessageEvent) => {
+      const data = JSON.parse(event.data) as ExecutionDetail;
+      setState((prev) => {
+        const executions = [...prev.executions];
+        const index = executions.findIndex((item) => item.id === data.id);
+        if (index >= 0) {
+          executions[index] = {
+            ...executions[index],
+            ...data,
+            logs: executions[index].logs,
+          };
+        } else {
+          executions.push({ ...data, logs: [] });
+        }
+        return {
+          ...prev,
+          executions,
+        };
+      });
+    };
+
+    const handleExecutionLog = (event: MessageEvent) => {
+      const data = JSON.parse(event.data) as ExecutionLog;
+      setState((prev) => {
+        const executions = [...prev.executions];
+        const index = executions.findIndex((item) => item.id === data.executionId);
+        if (index >= 0) {
+          const logs = [...executions[index].logs];
+          logs.push(data);
+          logs.sort((a, b) => a.sequence - b.sequence);
+          executions[index] = {
+            ...executions[index],
+            logs,
+          };
+        }
+        return {
+          ...prev,
+          executions,
+        };
+      });
+    };
+
     const handleStep = (event: MessageEvent) => {
       const data = JSON.parse(event.data) as RunStep;
       setState((prev) => {
@@ -84,6 +134,8 @@ export function RunDetailClient({ initial, runId }: RunDetailClientProps) {
     source.addEventListener('run.snapshot', handleSnapshot);
     source.addEventListener('run.updated', handleRunUpdated);
     source.addEventListener('run.plan', handlePlan);
+    source.addEventListener('run.execution', handleExecution);
+    source.addEventListener('run.execution.log', handleExecutionLog);
     source.addEventListener('run.step', handleStep);
     source.addEventListener('run.log', handleLog);
 
@@ -95,6 +147,8 @@ export function RunDetailClient({ initial, runId }: RunDetailClientProps) {
       source.removeEventListener('run.snapshot', handleSnapshot);
       source.removeEventListener('run.updated', handleRunUpdated);
       source.removeEventListener('run.plan', handlePlan);
+      source.removeEventListener('run.execution', handleExecution);
+      source.removeEventListener('run.execution.log', handleExecutionLog);
       source.removeEventListener('run.step', handleStep);
       source.removeEventListener('run.log', handleLog);
       source.close();
@@ -148,7 +202,9 @@ export function RunDetailClient({ initial, runId }: RunDetailClientProps) {
         </div>
       </section>
 
-      {state.plan && <PlanSummary plan={state.plan} />}
+      {state.plan && <PlanSummary plan={state.plan} recipe={state.recipe} />}
+
+      {state.executions.length > 0 && <ExecutionSummary executions={state.executions} />}
 
       {contexts.length > 0 && <StepOutputs steps={contexts} />}
 
@@ -199,7 +255,7 @@ function toThoughtSeverity(severity: RunLog['severity']): ThoughtEntry['severity
   return 'info';
 }
 
-function PlanSummary({ plan }: { plan: RunPlan }) {
+function PlanSummary({ plan, recipe }: { plan: RunPlan; recipe: RecipeSummary | null }) {
   return (
     <section className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 p-6 shadow-sm">
       <header className="flex items-center justify-between gap-4">
@@ -254,6 +310,28 @@ function PlanSummary({ plan }: { plan: RunPlan }) {
             {plan.prompt}
           </dd>
         </div>
+        <div>
+          <dt className="font-medium text-gray-700 dark:text-gray-300">Starting URL</dt>
+          <dd className="text-gray-600 dark:text-gray-400">
+            {plan.startingUrl ?? plan.baseUrl ?? '—'}
+          </dd>
+        </div>
+        {recipe && (
+          <div>
+            <dt className="font-medium text-gray-700 dark:text-gray-300">Recipe</dt>
+            <dd className="space-y-1 text-gray-600 dark:text-gray-400">
+              <p>{recipe.site}</p>
+              <a
+                href={recipe.baseUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-blue-600 dark:text-blue-400 hover:underline"
+              >
+                {recipe.baseUrl}
+              </a>
+            </dd>
+          </div>
+        )}
       </dl>
 
       <div className="mt-4 space-y-3">
@@ -276,6 +354,11 @@ function PlanSummary({ plan }: { plan: RunPlan }) {
           </div>
         )}
       </div>
+      {recipe?.pagination != null && (
+        <div className="mt-4">
+          <PlanDetails title="Recipe Pagination" data={recipe.pagination} />
+        </div>
+      )}
     </section>
   );
 }
@@ -293,6 +376,65 @@ function PlanDetails({ title, data }: { title: string; data: unknown }) {
 {JSON.stringify(data, null, 2)}
       </pre>
     </details>
+  );
+}
+
+function ExecutionSummary({ executions }: { executions: ExecutionDetail[] }) {
+  return (
+    <section className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 p-6 shadow-sm space-y-4">
+      <header>
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+          Execution
+        </h2>
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          Live status and logs for scrape execution attempts.
+        </p>
+      </header>
+
+      {executions.map((execution) => (
+        <details key={execution.id} className="group">
+          <summary className="flex cursor-pointer items-center justify-between rounded-lg bg-gray-50 dark:bg-gray-900 px-4 py-3 text-sm font-medium text-gray-800 dark:text-gray-200">
+            <span>
+              {execution.engine} · {execution.status}
+            </span>
+            <span className="text-xs uppercase tracking-wide text-gray-400 dark:text-gray-500">
+              Expand
+            </span>
+          </summary>
+          <div className="mt-2 space-y-2 rounded-lg bg-gray-900/70 p-4 text-xs text-gray-100">
+            <pre className="overflow-auto">
+{JSON.stringify(
+  {
+    engine: execution.engine,
+    status: execution.status,
+    startedAt: execution.startedAt,
+    completedAt: execution.completedAt,
+    error: execution.error,
+    metadata: execution.metadata ?? null,
+  },
+  null,
+  2
+)}
+            </pre>
+            {execution.logs.length > 0 && (
+              <div>
+                <p className="mb-2 font-semibold text-gray-300">Logs</p>
+                <ul className="space-y-2">
+                  {execution.logs.map((log) => (
+                    <li key={log.id} className="rounded-md bg-gray-950/40 p-2">
+                      <p className="text-gray-200">{log.message}</p>
+                      <pre className="mt-1 overflow-auto text-[11px] text-gray-400">
+{JSON.stringify(log.payload ?? null, null, 2)}
+                      </pre>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </details>
+      ))}
+    </section>
   );
 }
 

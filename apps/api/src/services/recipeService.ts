@@ -129,7 +129,7 @@ export async function createRecipeFromPrompt(
         max_attempts: 3,
         backoff_ms: 2000,
       },
-      timeout_ms: 30000,
+      timeout_ms: 600000, // 10 minutes for multi-page scrapes with pagination
     },
     schedule: null,
     datasets: {

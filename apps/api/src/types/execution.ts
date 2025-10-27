@@ -5,13 +5,32 @@
  * to produce a Dataset. It tracks status, progress, and results.
  */
 
+export interface ExecutionEvent {
+  timestamp: string;
+  type: 'start' | 'info' | 'success' | 'error' | 'warning';
+  message: string;
+  data?: any;
+}
+
+export interface ExecutionProgress {
+  phase: 'starting' | 'scraping' | 'extracting' | 'complete' | 'failed';
+  current_page?: number;
+  total_pages?: number;
+  items_count: number;
+  percentage: number;
+}
+
 export interface Execution {
   id: string;
   recipe_id: string;
   user_id: string;
   status: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
 
-  // Progress tracking
+  // Enhanced progress tracking
+  progress: ExecutionProgress;
+  events: ExecutionEvent[];
+
+  // Legacy stats (kept for compatibility)
   stats: {
     pages_scraped: number;
     items_scraped: number;

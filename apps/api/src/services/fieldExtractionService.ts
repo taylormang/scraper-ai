@@ -19,7 +19,97 @@ export class FieldExtractionService {
   }
 
   /**
-   * Extract structured fields from content
+   * Extract multiple items from content (e.g., list of posts, products, articles)
+   */
+  async extractMultipleItems(
+    content: string,
+    fields: RecipeField[],
+    context?: {
+      url?: string;
+      metadata?: any;
+    }
+  ): Promise<Record<string, any>[]> {
+    // Build the schema description for the AI
+    const fieldDescriptions = fields.map((field) => {
+      const desc = `- ${field.name} (${field.type})${field.required ? ' *required*' : ''}`;
+      if (field.default !== undefined) {
+        return `${desc} [default: ${JSON.stringify(field.default)}]`;
+      }
+      return desc;
+    });
+
+    const prompt = `Extract ALL items from this content. Each item should have the following fields. Return ONLY valid JSON with no additional text.
+
+Fields for each item:
+${fieldDescriptions.join('\n')}
+
+Content:
+${content.substring(0, 12000)}
+
+Return a JSON object with an "items" array containing ALL extracted items. Example format:
+{
+  "items": [
+    { ${fields.map(f => `"${f.name}": "value"`).join(', ')} },
+    { ${fields.map(f => `"${f.name}": "value"`).join(', ')} }
+  ]
+}
+
+Extract ALL items you can find in the content.`;
+
+    try {
+      const response = await this.openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a data extraction expert. Extract ALL structured items from content and return valid JSON only.',
+          },
+          {
+            role: 'user',
+            content: prompt,
+          },
+        ],
+        temperature: 0.1,
+        response_format: { type: 'json_object' },
+      });
+
+      const extractedData = JSON.parse(response.choices[0].message.content || '{"items":[]}');
+      const items = extractedData.items || [];
+
+      // Process each item: apply defaults and type coercion
+      return items.map((item: any) => {
+        const result: Record<string, any> = {};
+
+        for (const field of fields) {
+          let value = item[field.name];
+
+          // Apply default if no value found
+          if (value === undefined || value === null) {
+            if (field.default !== undefined) {
+              value = field.default;
+            } else if (field.required) {
+              value = this.getDefaultValueForType(field.type);
+            }
+          }
+
+          // Type coercion
+          if (value !== null && value !== undefined) {
+            value = this.coerceType(value, field.type);
+          }
+
+          result[field.name] = value;
+        }
+
+        return result;
+      });
+    } catch (error) {
+      console.error('[FieldExtractionService] Multi-item extraction error:', error);
+      return []; // Return empty array on error
+    }
+  }
+
+  /**
+   * Extract structured fields from content (single item)
    */
   async extractFields(
     content: string,

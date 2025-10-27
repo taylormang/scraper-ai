@@ -9,6 +9,42 @@ export interface PageContent {
 }
 
 /**
+ * Retry helper with exponential backoff
+ */
+async function retryWithBackoff<T>(
+  fn: () => Promise<T>,
+  maxRetries: number = 3,
+  baseDelay: number = 1000
+): Promise<T> {
+  let lastError: any;
+
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error: any) {
+      lastError = error;
+
+      // Don't retry if it's not a timeout error
+      if (!error?.message?.includes('timeout')) {
+        throw error;
+      }
+
+      const isLastAttempt = attempt === maxRetries - 1;
+      if (isLastAttempt) {
+        break;
+      }
+
+      // Exponential backoff: 1s, 2s, 4s
+      const delay = baseDelay * Math.pow(2, attempt);
+      console.log(`[PageContent] Retry attempt ${attempt + 1}/${maxRetries} after ${delay}ms...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+
+  throw lastError;
+}
+
+/**
  * Fetch page content using Firecrawl
  * Returns markdown and HTML content
  */
@@ -23,11 +59,16 @@ export async function fetchPageContent(
   let result;
   try {
     // Fetch page with markdown and HTML formats
-    result = await firecrawl.scrape(url, {
-      formats: ['markdown', 'html'],
-    } as any);
+    // Use retry logic to handle intermittent network/timeout issues
+    result = await retryWithBackoff(
+      () => firecrawl.scrape(url, {
+        formats: ['markdown', 'html'],
+      } as any),
+      3, // max retries
+      1000 // base delay (1s)
+    );
   } catch (error: any) {
-    console.error('[PageContent] Firecrawl scrape() threw error:', error);
+    console.error('[PageContent] Firecrawl scrape() threw error after retries:', error);
     throw new Error(`Firecrawl API error: ${error?.message || 'Unknown error'}`);
   }
 

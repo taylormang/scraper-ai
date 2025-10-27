@@ -49,6 +49,12 @@ export class RecipeExecutionService {
       recipe_id: recipeId,
       user_id: userId,
       status: 'queued',
+      progress: {
+        phase: 'starting',
+        items_count: 0,
+        percentage: 0,
+      },
+      events: [],
       stats: {
         pages_scraped: 0,
         items_scraped: 0,
@@ -101,6 +107,12 @@ export class RecipeExecutionService {
       recipe_id: recipeId,
       user_id: userId,
       status: 'queued',
+      progress: {
+        phase: 'starting',
+        items_count: 0,
+        percentage: 0,
+      },
+      events: [],
       stats: {
         pages_scraped: 0,
         items_scraped: 0,
@@ -234,6 +246,44 @@ export class RecipeExecutionService {
   }
 
   /**
+   * Build JSON schema from recipe fields for Firecrawl extraction
+   */
+  private buildExtractionSchema(recipe: Recipe): any {
+    const schema = {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {} as Record<string, any>,
+        required: recipe.extraction.fields.filter(f => f.required).map(f => f.name),
+      },
+    };
+
+    for (const field of recipe.extraction.fields) {
+      const fieldSchema: any = {};
+
+      switch (field.type) {
+        case 'string':
+        case 'url':
+          fieldSchema.type = 'string';
+          break;
+        case 'number':
+          fieldSchema.type = 'number';
+          break;
+        case 'date':
+          fieldSchema.type = 'string';
+          fieldSchema.format = 'date-time';
+          break;
+        default:
+          fieldSchema.type = 'string';
+      }
+
+      schema.items.properties[field.name] = fieldSchema;
+    }
+
+    return schema;
+  }
+
+  /**
    * Execute using Firecrawl engine
    */
   private async executeWithFirecrawl(
@@ -266,10 +316,18 @@ export class RecipeExecutionService {
       dataset_id: dataset.id,
     });
 
-    // Build Firecrawl crawl options from recipe configuration
+    // Build JSON schema for native Firecrawl extraction
+    const extractionSchema = this.buildExtractionSchema(recipe);
+
+    // Build Firecrawl crawl options with native extraction
     const crawlOptions: any = {
       scrapeOptions: {
-        formats: recipe.execution.engine_config?.firecrawl?.formats || ['markdown', 'html'],
+        formats: [
+          {
+            type: 'json',
+            schema: extractionSchema,
+          },
+        ],
       },
     };
 
@@ -278,67 +336,72 @@ export class RecipeExecutionService {
       crawlOptions.limit = recipe.extraction.page_count;
     }
 
-    await log('Starting Firecrawl crawl', {
+    await log('Starting Firecrawl crawl with native extraction', {
       url: recipe.base_url,
       limit: crawlOptions.limit,
-      formats: crawlOptions.scrapeOptions.formats,
+      fields: recipe.extraction.fields.map((f) => f.name),
     });
 
     try {
-      // Call Firecrawl API
-      const response = await this.firecrawl.crawl(recipe.base_url, crawlOptions);
+      // Call Firecrawl API with timeout
+      await log('Waiting for Firecrawl API response...');
+
+      const crawlPromise = this.firecrawl.crawl(recipe.base_url, crawlOptions);
+      const timeoutMs = recipe.execution.timeout_ms || 300000; // Default 5 minutes
+
+      const response = await Promise.race([
+        crawlPromise,
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error(`Firecrawl timeout after ${timeoutMs}ms`)), timeoutMs)
+        ),
+      ]) as any;
 
       await log('Firecrawl crawl completed', {
         status: response.status,
         completed: response.completed,
         total: response.total,
         creditsUsed: response.creditsUsed,
+        dataLength: response.data?.length || 0,
       });
 
-      // Count items scraped
-      const itemsScraped = response.data?.length || 0;
+      // Store items extracted by Firecrawl (already structured)
+      let totalItemsExtracted = 0;
 
-      // Store each page as a dataset item
       if (response.data && response.data.length > 0) {
-        await log('Extracting fields from scraped pages', {
+        await log('Storing items extracted by Firecrawl', {
           dataset_id: dataset.id,
           page_count: response.data.length,
           fields: recipe.extraction.fields.map((f) => f.name),
         });
 
         for (const page of response.data) {
-          // Extract structured fields from the page content
-          const extractedData = await this.fieldExtractor.extractFields(
-            page.markdown || '',
-            recipe.extraction.fields,
-            {
-              url: (page as any).url,
-              metadata: page.metadata,
+          // Firecrawl returns structured data in page.json (array of items)
+          const extractedItems = page.json || [];
+
+          // Store each item
+          for (const itemData of extractedItems) {
+            if (recipe.extraction.include_raw_content) {
+              itemData._raw = {
+                markdown: page.markdown,
+                html: page.html,
+                metadata: page.metadata,
+              };
             }
-          );
 
-          // Store the extracted data (optionally include raw content)
-          const itemData: any = { ...extractedData };
+            await this.datasetRepo.addItem({
+              dataset_id: dataset.id,
+              data: itemData,
+              source_url: (page as any).url || recipe.base_url,
+              scraped_at: new Date().toISOString(),
+            });
 
-          if (recipe.extraction.include_raw_content) {
-            itemData._raw = {
-              markdown: page.markdown,
-              html: page.html,
-              metadata: page.metadata,
-            };
+            totalItemsExtracted++;
           }
-
-          await this.datasetRepo.addItem({
-            dataset_id: dataset.id,
-            data: itemData,
-            source_url: (page as any).url || recipe.base_url,
-            scraped_at: new Date().toISOString(),
-          });
         }
 
-        await log('All pages extracted and stored in dataset', {
+        await log('All items stored in dataset', {
           dataset_id: dataset.id,
-          items_stored: response.data.length,
+          items_stored: totalItemsExtracted,
         });
       }
 
@@ -346,7 +409,7 @@ export class RecipeExecutionService {
       await updateExecution({
         stats: {
           pages_scraped: response.total || 0,
-          items_scraped: itemsScraped,
+          items_scraped: totalItemsExtracted,
           errors: 0,
         },
       });
@@ -450,6 +513,20 @@ export class RecipeExecutionService {
       throw new Error(`Execution not found: ${executionId}`);
     }
 
+    const totalPages = recipe.extraction.page_count || 1;
+
+    // Event: Starting execution
+    await this.executionRepo.addEventAndUpdateProgress(
+      executionId,
+      'start',
+      `Starting execution for ${totalPages} pages`,
+      {
+        phase: 'starting',
+        total_pages: totalPages,
+        percentage: 0,
+      }
+    );
+
     // Create Dataset for this execution
     const dataset = await this.datasetRepo.create({
       recipe_id: recipe.id,
@@ -458,16 +535,25 @@ export class RecipeExecutionService {
     });
 
     await log('Created dataset', { dataset_id: dataset.id });
+    await this.executionRepo.addEvent(executionId, 'info', `Created dataset ${dataset.id}`);
 
     // Link dataset to execution
     await updateExecution({
       dataset_id: dataset.id,
     });
 
-    // Build Firecrawl crawl options from recipe configuration
+    // Build JSON schema for native Firecrawl extraction
+    const extractionSchema = this.buildExtractionSchema(recipe);
+
+    // Build Firecrawl crawl options with native extraction
     const crawlOptions: any = {
       scrapeOptions: {
-        formats: recipe.execution.engine_config?.firecrawl?.formats || ['markdown', 'html'],
+        formats: [
+          {
+            type: 'json',
+            schema: extractionSchema,
+          },
+        ],
       },
     };
 
@@ -476,75 +562,142 @@ export class RecipeExecutionService {
       crawlOptions.limit = recipe.extraction.page_count;
     }
 
-    await log('Starting Firecrawl crawl', {
+    await log('Starting Firecrawl crawl with native extraction', {
       url: recipe.base_url,
       limit: crawlOptions.limit,
-      formats: crawlOptions.scrapeOptions.formats,
+      fields: recipe.extraction.fields.map((f) => f.name),
     });
 
+    // Event: Starting scrape
+    await this.executionRepo.addEventAndUpdateProgress(
+      executionId,
+      'info',
+      `Scraping ${recipe.base_url}`,
+      {
+        phase: 'scraping',
+        percentage: 10,
+      }
+    );
+
     try {
-      // Call Firecrawl API
-      const response = await this.firecrawl.crawl(recipe.base_url, crawlOptions);
+      // Call Firecrawl API with timeout
+      await log('Waiting for Firecrawl API response...');
+
+      const crawlPromise = this.firecrawl.crawl(recipe.base_url, crawlOptions);
+      const timeoutMs = recipe.execution.timeout_ms || 300000; // Default 5 minutes
+
+      const response = await Promise.race([
+        crawlPromise,
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error(`Firecrawl timeout after ${timeoutMs}ms`)), timeoutMs)
+        ),
+      ]) as any;
 
       await log('Firecrawl crawl completed', {
         status: response.status,
         completed: response.completed,
         total: response.total,
         creditsUsed: response.creditsUsed,
+        dataLength: response.data?.length || 0,
       });
 
-      // Count items scraped
-      const itemsScraped = response.data?.length || 0;
+      // Event: Scrape completed
+      await this.executionRepo.addEventAndUpdateProgress(
+        executionId,
+        'success',
+        `✓ Scraped ${response.data?.length || 0} pages`,
+        {
+          phase: 'extracting',
+          current_page: 0,
+          total_pages: response.data?.length || 0,
+          percentage: 40,
+        }
+      );
 
-      // Store each page as a dataset item
+      let totalItemsExtracted = 0;
+
+      // Store items extracted by Firecrawl (already structured)
       if (response.data && response.data.length > 0) {
-        await log('Extracting fields from scraped pages', {
+        await log('Storing items extracted by Firecrawl', {
           dataset_id: dataset.id,
           page_count: response.data.length,
           fields: recipe.extraction.fields.map((f) => f.name),
         });
 
-        for (const page of response.data) {
-          // Extract structured fields from the page content
-          const extractedData = await this.fieldExtractor.extractFields(
-            page.markdown || '',
-            recipe.extraction.fields,
+        const totalPagesToProcess = response.data.length;
+
+        for (let i = 0; i < response.data.length; i++) {
+          const page = response.data[i];
+          const pageNum = i + 1;
+
+          // Firecrawl returns structured data in page.json (array of items)
+          const extractedItems = page.json || [];
+
+          // Event: Processing page
+          await this.executionRepo.addEventAndUpdateProgress(
+            executionId,
+            'info',
+            `Storing ${extractedItems.length} items from page ${pageNum}/${totalPagesToProcess}`,
             {
-              url: (page as any).url,
-              metadata: page.metadata,
+              phase: 'extracting',
+              current_page: pageNum,
+              total_pages: totalPagesToProcess,
+              items_count: totalItemsExtracted,
+              percentage: 40 + Math.floor((pageNum / totalPagesToProcess) * 50),
             }
           );
 
-          // Store the extracted data (optionally include raw content)
-          const itemData: any = { ...extractedData };
+          // Store each item
+          for (const itemData of extractedItems) {
+            if (recipe.extraction.include_raw_content) {
+              itemData._raw = {
+                markdown: page.markdown,
+                html: page.html,
+                metadata: page.metadata,
+              };
+            }
 
-          if (recipe.extraction.include_raw_content) {
-            itemData._raw = {
-              markdown: page.markdown,
-              html: page.html,
-              metadata: page.metadata,
-            };
+            await this.datasetRepo.addItem({
+              dataset_id: dataset.id,
+              data: itemData,
+              source_url: (page as any).url || recipe.base_url,
+              scraped_at: new Date().toISOString(),
+            });
+
+            totalItemsExtracted++;
           }
 
-          await this.datasetRepo.addItem({
-            dataset_id: dataset.id,
-            data: itemData,
-            source_url: (page as any).url || recipe.base_url,
-            scraped_at: new Date().toISOString(),
-          });
+          // Event: Page processed
+          await this.executionRepo.addEvent(
+            executionId,
+            'success',
+            `✓ Stored ${extractedItems.length} items from page ${pageNum}/${totalPagesToProcess}`
+          );
         }
 
-        await log('All pages extracted and stored in dataset', {
+        await log('All items stored in dataset', {
           dataset_id: dataset.id,
-          items_stored: response.data.length,
+          items_stored: totalItemsExtracted,
         });
+
+        // Event: All extraction complete
+        await this.executionRepo.addEventAndUpdateProgress(
+          executionId,
+          'success',
+          `✓ Extracted ${totalItemsExtracted} items from ${totalPagesToProcess} pages`,
+          {
+            phase: 'complete',
+            items_count: totalItemsExtracted,
+            percentage: 100,
+          }
+        );
       }
 
       // Update stats
       await updateExecution({
         stats: {
           pages_scraped: response.total || 0,
-          items_scraped: itemsScraped,
+          items_scraped: totalItemsExtracted,
           errors: 0,
         },
       });
@@ -559,6 +712,18 @@ export class RecipeExecutionService {
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Firecrawl execution failed';
       await log(`Firecrawl error: ${message}`, { error: message }, 'error');
+
+      // Event: Error
+      await this.executionRepo.addEventAndUpdateProgress(
+        executionId,
+        'error',
+        `Error: ${message}`,
+        {
+          phase: 'failed',
+          percentage: 0,
+        }
+      );
+
       throw error;
     }
   }

@@ -7,7 +7,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { Execution, ExecutionLog } from '../types/execution.js';
+import type { Execution, ExecutionLog, ExecutionEvent, ExecutionProgress } from '../types/execution.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -188,5 +188,85 @@ export class JsonExecutionRepository {
     return logs
       .filter((log) => log.execution_id === executionId && log.sequence > afterSequence)
       .sort((a, b) => a.sequence - b.sequence);
+  }
+
+  // Progress tracking methods
+  async addEvent(
+    executionId: string,
+    type: ExecutionEvent['type'],
+    message: string,
+    data?: any
+  ): Promise<Execution | null> {
+    const execution = await this.findById(executionId);
+    if (!execution) {
+      return null;
+    }
+
+    const event: ExecutionEvent = {
+      timestamp: new Date().toISOString(),
+      type,
+      message,
+      data,
+    };
+
+    execution.events = execution.events || [];
+    execution.events.push(event);
+
+    return this.update(executionId, { events: execution.events });
+  }
+
+  async updateProgress(
+    executionId: string,
+    progress: Partial<ExecutionProgress>
+  ): Promise<Execution | null> {
+    const execution = await this.findById(executionId);
+    if (!execution) {
+      return null;
+    }
+
+    const updatedProgress: ExecutionProgress = {
+      ...execution.progress,
+      ...progress,
+    };
+
+    return this.update(executionId, { progress: updatedProgress });
+  }
+
+  async addEventAndUpdateProgress(
+    executionId: string,
+    type: ExecutionEvent['type'],
+    message: string,
+    progress?: Partial<ExecutionProgress>,
+    eventData?: any
+  ): Promise<Execution | null> {
+    const execution = await this.findById(executionId);
+    if (!execution) {
+      return null;
+    }
+
+    // Add event
+    const event: ExecutionEvent = {
+      timestamp: new Date().toISOString(),
+      type,
+      message,
+      data: eventData,
+    };
+
+    execution.events = execution.events || [];
+    execution.events.push(event);
+
+    // Update progress if provided
+    let updatedProgress = execution.progress;
+    if (progress) {
+      updatedProgress = {
+        ...execution.progress,
+        ...progress,
+      };
+    }
+
+    return this.update(executionId, {
+      events: execution.events,
+      progress: updatedProgress
+    });
   }
 }

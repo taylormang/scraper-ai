@@ -1,10 +1,12 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import Link from 'next/link';
 
 export default function Home() {
+  const router = useRouter();
   const [prompt, setPrompt] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
@@ -31,13 +33,10 @@ export default function Home() {
       const executeResponse = await api.recipes.execute(recipe.id, 'default_user');
       const execution = executeResponse.data.execution;
 
-      setResult({
-        recipe,
-        execution,
-      });
+      // Redirect to execution logs page
+      router.push(`/executions/${execution.id}`);
     } catch (err: any) {
       setError(err.message || 'Failed to create and execute recipe');
-    } finally {
       setLoading(false);
     }
   };
@@ -83,56 +82,6 @@ export default function Home() {
           <div className="mb-8 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
             <p className="text-red-700 dark:text-red-400 font-semibold">Error</p>
             <p className="text-red-600 dark:text-red-300">{error}</p>
-          </div>
-        )}
-
-        {/* Result Display */}
-        {result && (
-          <div className="mb-8 p-6 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg">
-            <h2 className="text-xl font-semibold mb-4 text-green-600 dark:text-green-400">
-              ✓ Recipe Created & Execution Started
-            </h2>
-            <div className="space-y-3 text-sm">
-              <div>
-                <span className="font-semibold text-gray-700 dark:text-gray-300">Recipe:</span>{' '}
-                <Link
-                  href={`/recipes?id=${result.recipe.id}`}
-                  className="text-blue-600 dark:text-blue-400 hover:underline"
-                >
-                  {result.recipe.name}
-                </Link>
-              </div>
-              <div>
-                <span className="font-semibold text-gray-700 dark:text-gray-300">
-                  Recipe ID:
-                </span>{' '}
-                <code className="bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">
-                  {result.recipe.id}
-                </code>
-              </div>
-              <div>
-                <span className="font-semibold text-gray-700 dark:text-gray-300">
-                  Execution ID:
-                </span>{' '}
-                <code className="bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">
-                  {result.execution.id}
-                </code>
-              </div>
-              <div>
-                <span className="font-semibold text-gray-700 dark:text-gray-300">Status:</span>{' '}
-                <span className="text-yellow-600 dark:text-yellow-400">
-                  {result.execution.status}
-                </span>
-              </div>
-              <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
-                <p className="text-gray-600 dark:text-gray-400">
-                  View execution progress in{' '}
-                  <Link href="/datasets" className="text-blue-600 dark:text-blue-400 hover:underline">
-                    Datasets
-                  </Link>
-                </p>
-              </div>
-            </div>
           </div>
         )}
 

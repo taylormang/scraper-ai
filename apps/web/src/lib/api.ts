@@ -56,6 +56,10 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(data),
       }),
+    delete: (id: string) =>
+      request<any>(`/api/recipes/${id}`, {
+        method: 'DELETE',
+      }),
     execute: (id: string, userId?: string) =>
       request<any>(`/api/recipes/${id}/execute`, {
         method: 'POST',

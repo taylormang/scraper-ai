@@ -87,11 +87,11 @@ export default function RecipesPage() {
             {recipes.map((recipe) => (
               <div
                 key={recipe.id}
-                className="p-6 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg"
+                className="p-6 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg hover:border-blue-500 dark:hover:border-blue-500 transition-colors"
               >
                 <div className="flex justify-between items-start mb-4">
-                  <div>
-                    <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-2">
+                  <Link href={`/recipes/${recipe.id}`} className="flex-1">
+                    <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-2 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
                       {recipe.name}
                     </h2>
                     {recipe.description && (
@@ -100,11 +100,11 @@ export default function RecipesPage() {
                     <code className="text-sm bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">
                       {recipe.id}
                     </code>
-                  </div>
+                  </Link>
                   <button
                     onClick={() => handleExecute(recipe.id)}
                     disabled={executing === recipe.id}
-                    className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white rounded-lg transition-colors disabled:cursor-not-allowed"
+                    className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white rounded-lg transition-colors disabled:cursor-not-allowed ml-4"
                   >
                     {executing === recipe.id ? 'Executing...' : '▶ Execute'}
                   </button>

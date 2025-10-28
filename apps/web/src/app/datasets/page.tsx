@@ -138,6 +138,12 @@ export default function DatasetsPage() {
                     </h2>
                     <div className="flex gap-2">
                       <Link
+                        href={`/recipes/${selectedDataset.recipe_id}`}
+                        className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm transition-colors"
+                      >
+                        View Recipe
+                      </Link>
+                      <Link
                         href={`/executions/${selectedDataset.execution_id}`}
                         className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm transition-colors"
                       >

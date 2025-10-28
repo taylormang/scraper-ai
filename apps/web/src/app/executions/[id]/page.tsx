@@ -105,13 +105,15 @@ export default function ExecutionDetailPage() {
   return (
     <main className="min-h-screen px-6 py-20 bg-gray-50 dark:bg-gray-950">
       <div className="max-w-7xl mx-auto">
-        <div className="mb-6">
+        <div className="mb-6 flex items-center gap-2 text-sm">
           <Link
-            href="/datasets"
-            className="text-blue-600 dark:text-blue-400 hover:underline text-sm"
+            href="/executions"
+            className="text-blue-600 dark:text-blue-400 hover:underline"
           >
-            ← Back to Datasets
+            Executions
           </Link>
+          <span className="text-gray-400">/</span>
+          <span className="text-gray-600 dark:text-gray-400">{executionId}</span>
         </div>
 
         <div className="flex justify-between items-start mb-6">
@@ -152,9 +154,12 @@ export default function ExecutionDetailPage() {
               <div className="space-y-3 text-sm">
                 <div>
                   <div className="text-gray-500 dark:text-gray-500">Recipe</div>
-                  <div className="text-gray-900 dark:text-white">
+                  <Link
+                    href={`/recipes/${execution.recipe_id}`}
+                    className="text-blue-600 dark:text-blue-400 hover:underline"
+                  >
                     {execution.recipe_name || execution.recipe_id}
-                  </div>
+                  </Link>
                 </div>
 
                 <div>

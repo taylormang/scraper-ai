@@ -6,6 +6,8 @@ import type {
   PaginationSummaryAnchor,
   PaginationSummaryButton,
   PaginationSummaryStats,
+  InfiniteScrollHints,
+  ContentContainer,
 } from '../types/pagination.js';
 
 const KEYWORD_RE = /(next|prev|previous|more|older|newer|page|pager|pagination|load|weiter|suivant|following)/i;
@@ -77,6 +79,12 @@ export function buildPaginationSummary(input: PaginationSummaryInput): Paginatio
   const textSource = textContent || markdownText;
   const textExcerpt = truncateMiddle(textSource, 2000);
 
+  // Detect infinite scroll hints
+  const infiniteScrollHints = detectInfiniteScrollHints($, html);
+
+  // Detect repeating content container
+  const contentContainer = detectContentContainer($);
+
   return {
     url: input.url,
     title,
@@ -91,6 +99,8 @@ export function buildPaginationSummary(input: PaginationSummaryInput): Paginatio
       totalButtons: buttonElements.length,
       textLength: textSource.length,
     } as PaginationSummaryStats,
+    infiniteScrollHints,
+    contentContainer,
   };
 }
 
@@ -174,4 +184,133 @@ function truncateMiddle(value: string, max: number): { combined: string; head: s
   const tail = value.slice(-half);
   const combined = `${head}\n… [content truncated, total ${value.length} chars] …\n${tail}`;
   return { combined, head, tail };
+}
+
+/**
+ * Detect signals that indicate infinite scroll pagination
+ */
+function detectInfiniteScrollHints($: CheerioAPI, html: string): InfiniteScrollHints {
+  const reasoning: string[] = [];
+
+  // Check for Intersection Observer in script tags
+  const hasIntersectionObserver = html.includes('IntersectionObserver') || html.includes('intersection-observer');
+  if (hasIntersectionObserver) {
+    reasoning.push('Found IntersectionObserver API usage in scripts');
+  }
+
+  // Check for lazy loading attributes
+  const lazyElements = $('[loading="lazy"], [data-src], [data-lazy], [data-lazy-src]');
+  const hasLazyLoadingAttributes = lazyElements.length;
+  if (hasLazyLoadingAttributes > 5) {
+    reasoning.push(`Found ${hasLazyLoadingAttributes} elements with lazy loading attributes`);
+  }
+
+  // Check for sentinel/loader elements
+  const sentinelSelectors = [
+    '[id*="infinite"]',
+    '[class*="infinite"]',
+    '[id*="loader"]',
+    '[class*="loader"]',
+    '[id*="spinner"]',
+    '[class*="spinner"]',
+    '[class*="loading"]',
+    '[id*="loading"]',
+    '[class*="sentinel"]',
+  ].join(',');
+  const sentinelElements = $(sentinelSelectors);
+  const hasSentinelElements = sentinelElements.length;
+  if (hasSentinelElements > 0) {
+    reasoning.push(`Found ${hasSentinelElements} sentinel/loader elements`);
+  }
+
+  // Check for infinite scroll keywords in classes/IDs
+  const infiniteScrollKeywords = /infinite|endless|auto-load|lazy-load|scroll-load/i;
+  const hasInfiniteScrollKeywords = $('*').toArray().some((el) => {
+    const classes = $(el).attr('class') || '';
+    const id = $(el).attr('id') || '';
+    return infiniteScrollKeywords.test(classes) || infiniteScrollKeywords.test(id);
+  });
+  if (hasInfiniteScrollKeywords) {
+    reasoning.push('Found elements with infinite scroll-related keywords in class/id');
+  }
+
+  return {
+    hasIntersectionObserver,
+    hasLazyLoadingAttributes,
+    hasSentinelElements,
+    hasInfiniteScrollKeywords,
+    reasoning,
+  };
+}
+
+/**
+ * Detect the main content container with repeating items
+ */
+function detectContentContainer($: CheerioAPI): ContentContainer | undefined {
+  // Common container patterns for listings/grids
+  const containerCandidates = [
+    { selector: '[class*="search-results"]', weight: 3 },
+    { selector: '[class*="results"]', weight: 2 },
+    { selector: '[class*="listing"]', weight: 2 },
+    { selector: '[class*="grid"]', weight: 1 },
+    { selector: '[class*="list"]', weight: 1 },
+    { selector: '[class*="items"]', weight: 1 },
+    { selector: '[class*="cards"]', weight: 1 },
+    { selector: '[class*="feed"]', weight: 1 },
+    { selector: '[role="list"]', weight: 2 },
+    { selector: 'ul[class*="product"], ul[class*="item"], ul[class*="card"]', weight: 2 },
+  ];
+
+  interface ContainerMatch {
+    selector: string;
+    itemCount: number;
+    score: number;
+    itemClasses: string[];
+  }
+
+  const matches: ContainerMatch[] = [];
+
+  for (const candidate of containerCandidates) {
+    const containers = $(candidate.selector);
+
+    containers.each((_, container) => {
+      const $container = $(container);
+
+      // Look for repeating child patterns (articles, divs with similar classes, list items)
+      const children = $container.children();
+      const articleChildren = $container.find('article, [class*="card"], [class*="item"], [class*="product"], li');
+
+      const itemCount = Math.max(children.length, articleChildren.length);
+
+      // Only consider if there are many items (suggests a list)
+      if (itemCount >= 10) {
+        // Collect sample of class names from items
+        const itemClasses: string[] = [];
+        articleChildren.slice(0, 5).each((_, item) => {
+          const classes = $(item).attr('class');
+          if (classes) itemClasses.push(classes);
+        });
+
+        matches.push({
+          selector: candidate.selector,
+          itemCount,
+          score: candidate.weight * (itemCount > 20 ? 2 : 1),
+          itemClasses,
+        });
+      }
+    });
+  }
+
+  // Find best match
+  if (matches.length === 0) return undefined;
+
+  matches.sort((a, b) => b.score - a.score);
+  const best = matches[0];
+
+  return {
+    selector: best.selector,
+    itemCount: best.itemCount,
+    sampleItemClasses: best.itemClasses.slice(0, 3),
+    reasoning: `Found ${best.itemCount} repeating items in container matching ${best.selector}`,
+  };
 }

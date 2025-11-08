@@ -24,7 +24,25 @@ Strategy definitions:
 - "infinite_scroll": Site automatically loads more content on scroll
 - "none": No pagination detected
 
-DO NOT invent selectors unless clear evidence exists in the input.`;
+IMPORTANT - Infinite Scroll Detection:
+Pay special attention to infiniteScrollHints and contentContainer fields in the input.
+If you see:
+- IntersectionObserver usage OR 10+ lazy loading elements
+- A content container with 20+ repeating items
+- NO clear "Next" button or numbered pagination
+Then the site is VERY LIKELY using infinite_scroll, even if there are buttons present.
+
+Many buttons on listing pages are for filters, sorting, or individual item actions (NOT pagination).
+If a button selector contains words like "menu", "dropdown", "filter", "sort", "action", "card", it's probably NOT pagination.
+
+Examples:
+- 41 product cards, IntersectionObserver found, buttons are "filter" → infinite_scroll (high confidence)
+- 15 article items, no clear next button, lazy loading present → infinite_scroll (medium confidence)
+- Clear "Next Page" link with good score → next_link
+- Button with text "Load More Posts" → load_more
+
+DO NOT invent selectors unless clear evidence exists in the input.
+When in doubt between load_more and infinite_scroll, prefer infinite_scroll if there are 20+ items.`;
 
 export interface PaginationAnalysisInput {
   url: string;
@@ -71,7 +89,7 @@ export async function analyzePagination(
   // Build prompt for AI analysis
   const prompt = [
     'Analyze the following JSON summary of a web page to determine pagination behaviour.',
-    'Focus on the anchorSample, buttonSample, and navigationFragments fields.',
+    'Focus on the anchorSample, buttonSample, navigationFragments, infiniteScrollHints, and contentContainer fields.',
     'Summary:',
     JSON.stringify(
       {
@@ -80,6 +98,8 @@ export async function analyzePagination(
         anchorSample: summary.anchorSample?.slice(0, 20), // Top 20 anchors
         buttonSample: summary.buttonSample?.slice(0, 10), // Top 10 buttons
         navigationFragments: summary.navigationFragments?.slice(0, 5), // Top 5 nav sections
+        infiniteScrollHints: summary.infiniteScrollHints, // NEW: Infinite scroll signals
+        contentContainer: summary.contentContainer, // NEW: Repeating content info
       },
       null,
       2

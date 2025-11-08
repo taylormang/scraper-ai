@@ -41,9 +41,7 @@ export interface Execution {
   // Configuration snapshot from Recipe at execution time
   config: {
     engine: string;
-    limit_strategy: string;
-    page_count?: number;
-    item_count?: number;
+    depth: number; // Scrape depth (1-10)
     base_url: string;
   };
 
@@ -83,4 +81,28 @@ export interface ExecutionListItem {
   started_at?: string;
   completed_at?: string;
   created_at: string;
+}
+
+// DataItem - Individual scraped record
+// Aligned with /docs/architecture_v1.md
+export interface DataItem {
+  id: string;
+  datasetId: string;
+
+  // Actual scraped data (conforms to dataset schema)
+  data: Record<string, any>;
+
+  // Provenance
+  sourceUrl: string; // Original URL
+  sourceLabel: string; // Which source (for multi-source recipes)
+
+  // Metadata
+  scrapedAt: Date;
+  position?: number; // Order in original list
+
+  // Optional: for debugging
+  _debug?: {
+    rawHtml?: string;
+    extractionLog?: string;
+  };
 }

@@ -17,6 +17,10 @@ export default function RecipeDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [executing, setExecuting] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [showUpdateModal, setShowUpdateModal] = useState(false);
+  const [updatePrompt, setUpdatePrompt] = useState('');
+  const [updating, setUpdating] = useState(false);
+  const [updateSuccess, setUpdateSuccess] = useState<string[] | null>(null);
 
   useEffect(() => {
     loadRecipe();
@@ -65,6 +69,38 @@ export default function RecipeDetailPage() {
       setError(err.message || 'Failed to execute recipe');
     } finally {
       setExecuting(false);
+    }
+  };
+
+  const handleUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!updatePrompt.trim()) return;
+
+    try {
+      setUpdating(true);
+      setUpdateSuccess(null);
+      const response = await api.recipes.update(recipeId, { prompt: updatePrompt });
+
+      // Show what changed
+      if (response.data.changes && response.data.changes.length > 0) {
+        setUpdateSuccess(response.data.changes);
+      } else {
+        setUpdateSuccess(['No changes needed - recipe already matches your request']);
+      }
+
+      // Reload recipe to show updated data
+      await loadRecipe();
+      setUpdatePrompt('');
+
+      // Close modal after 3 seconds
+      setTimeout(() => {
+        setShowUpdateModal(false);
+        setUpdateSuccess(null);
+      }, 3000);
+    } catch (err: any) {
+      setError(err.message || 'Failed to update recipe');
+    } finally {
+      setUpdating(false);
     }
   };
 
@@ -148,6 +184,12 @@ export default function RecipeDetailPage() {
               {executing ? 'Executing...' : '▶ Execute'}
             </button>
             <button
+              onClick={() => setShowUpdateModal(true)}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+            >
+              ✏ Update
+            </button>
+            <button
               onClick={handleDelete}
               disabled={deleting}
               className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white rounded-lg transition-colors disabled:cursor-not-allowed"
@@ -161,6 +203,65 @@ export default function RecipeDetailPage() {
           <div className="mb-8 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
             <p className="text-red-700 dark:text-red-400 font-semibold">Error</p>
             <p className="text-red-600 dark:text-red-300">{error}</p>
+          </div>
+        )}
+
+        {/* Update Modal */}
+        {showUpdateModal && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-6 max-w-2xl w-full">
+              <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">
+                Update Recipe
+              </h2>
+              <p className="text-gray-600 dark:text-gray-400 mb-4">
+                Describe what you'd like to change. For example: "Change to 20 pages" or "Add a 'score' field"
+              </p>
+
+              {updateSuccess && (
+                <div className="mb-4 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                  <p className="text-green-700 dark:text-green-400 font-semibold mb-2">✓ Recipe Updated</p>
+                  <ul className="text-sm text-green-600 dark:text-green-300 space-y-1">
+                    {updateSuccess.map((change, i) => (
+                      <li key={i}>• {change}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              <form onSubmit={handleUpdate}>
+                <textarea
+                  value={updatePrompt}
+                  onChange={(e) => setUpdatePrompt(e.target.value)}
+                  placeholder="e.g., Change to scrape 20 pages instead of 10"
+                  className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 mb-4"
+                  rows={4}
+                  disabled={updating}
+                  required
+                />
+
+                <div className="flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowUpdateModal(false);
+                      setUpdatePrompt('');
+                      setUpdateSuccess(null);
+                    }}
+                    disabled={updating}
+                    className="px-4 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-900 dark:text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={updating || !updatePrompt.trim()}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg transition-colors disabled:cursor-not-allowed"
+                  >
+                    {updating ? 'Updating...' : 'Update Recipe'}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         )}
 

@@ -1,75 +1,40 @@
-// Source type based on data-schema.md
+// Source type - Domain characteristics only
+// Aligned with /docs/architecture_v1.md
+
 export interface Source {
   id: string;
-  url: string;
-  url_pattern: string | null;
-  domain: string;
-  canonical_url: string;
+  domain: string; // 'news.ycombinator.com'
+  baseUrl: string; // 'https://news.ycombinator.com'
 
-  engine_configs?: {
-    firecrawl?: {
-      actions: Array<Record<string, any>>;
-      formats: string[];
-      wait_for?: 'selector' | 'network_idle' | null;
-    };
+  // Rendering characteristics (AI-determined)
+  rendering: 'static' | 'spa' | 'hybrid';
+  antiBot: 'none' | 'cloudflare' | 'recaptcha' | 'perimeter_x';
+
+  // URL patterns (AI-determined)
+  urlPatterns: {
+    list: string[]; // ['/', '/news?p=*']
+    item: string[]; // ['/item?id=*']
+    exclude: string[]; // ['/user?id=*', '/login', '/submit']
   };
 
-  pagination?: {
-    strategy: 'next_link' | 'infinite_scroll' | 'spa' | 'numbered_pages' | 'load_more_button' | 'none';
-    confidence: 'high' | 'medium' | 'low';
-    limit_strategy: 'page_count' | 'item_count' | 'end_condition';
-    navigation_schema?: {
-      next_selector?: string;
-      href_template?: string;
-      page_param?: string;
-      start_page?: number;
-      item_selector?: string;
-      end_condition?: 'no_next_link' | 'duplicate_items' | 'empty_page';
-    };
-    ai_analysis?: {
-      description: string;
-      pagination_type_reasoning: string;
-      special_notes?: string;
-      analyzed_at: string;
-      analyzer_version: string;
-      model_used: string;
-    };
+  // Performance metadata
+  metadata: {
+    lastAnalyzed: Date;
+    analysisVersion: string; // Track analysis model version
+    successRate: number; // 0-1, across all recipes using this source
+    avgResponseTime: number; // milliseconds
+    totalExecutions: number;
   };
 
-  content_structure?: {
-    typical_fields: Array<{
-      name: string;
-      type: string;
-      selector?: string;
-      attribute?: string;
-    }>;
-    items_per_page?: number;
-    ai_detected: boolean;
-  };
+  createdAt: Date;
+  updatedAt: Date;
+}
 
-  validation?: {
-    status: 'validated' | 'needs_validation' | 'failed';
-    test_runs: number;
-    success_rate: number;
-    last_validated?: string;
-    issues: string[];
-  };
-
-  sample?: {
-    screenshot_url?: string;
-    markdown_excerpt?: string;
-    html_excerpt?: string;
-    sample_items?: Array<Record<string, any>>;
-  };
-
-  usage_stats?: {
-    recipe_count: number;
-    total_scrapes: number;
-    last_used?: string;
-    avg_items_per_page?: number;
-  };
-
-  created_at: string;
-  updated_at: string;
-  created_by: 'system' | string;
+// For AI analysis results
+export interface SourceAnalysisResult {
+  rendering: Source['rendering'];
+  antiBot: Source['antiBot'];
+  urlPatterns: Source['urlPatterns'];
+  confidence: 'high' | 'medium' | 'low';
+  reasoning: string;
 }

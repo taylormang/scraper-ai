@@ -40,9 +40,7 @@ export async function handleCreateRecipe(args: any) {
       `**Source ID**: ${recipe.source_id}`,
       ``,
       `**Extraction Configuration**:`,
-      `- Strategy: ${recipe.extraction.limit_strategy}`,
-      `- Pages: ${recipe.extraction.page_count || 'N/A'}`,
-      `- Items: ${recipe.extraction.item_count || 'N/A'}`,
+      `- Depth: ${recipe.extraction.depth} pages`,
       `- Deduplication: ${recipe.extraction.deduplicate ? 'Enabled' : 'Disabled'}`,
       recipe.extraction.deduplicate_field
         ? `- Deduplicate by: ${recipe.extraction.deduplicate_field}`
@@ -55,8 +53,7 @@ export async function handleCreateRecipe(args: any) {
       ``,
       `**Engine Configuration**:`,
       `- Engine: ${recipe.execution.engine}`,
-      `- Actions: ${recipe.execution.engine_config.firecrawl.actions.length} steps`,
-      `- Strategy: ${source.pagination?.strategy || 'none'}`,
+      `- Pagination: ${source.pagination?.strategy || 'none'}`,
       ``,
       `**Created**: ${new Date(recipe.created_at).toLocaleString()}`,
     ]
@@ -119,7 +116,7 @@ export async function handleListRecipes(args: any) {
           `  URL: ${r.base_url}`,
           `  Status: ${r.status}`,
           `  Fields: ${r.extraction.fields.map((f: any) => f.name).join(', ')}`,
-          `  Pages: ${r.extraction.page_count || 'N/A'}`,
+          `  Depth: ${r.extraction.depth} pages`,
           `  Created: ${new Date(r.created_at).toLocaleString()}`,
           ``,
         ])
@@ -174,9 +171,7 @@ export async function handleGetRecipe(args: any) {
       `**User ID**: ${recipe.user_id}`,
       ``,
       `**Extraction**:`,
-      `- Strategy: ${recipe.extraction.limit_strategy}`,
-      `- Page count: ${recipe.extraction.page_count || 'N/A'}`,
-      `- Item count: ${recipe.extraction.item_count || 'N/A'}`,
+      `- Depth: ${recipe.extraction.depth} pages`,
       `- Deduplicate: ${recipe.extraction.deduplicate}`,
       recipe.extraction.deduplicate_field
         ? `- Deduplicate field: ${recipe.extraction.deduplicate_field}`

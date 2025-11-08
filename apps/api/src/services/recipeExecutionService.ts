@@ -12,6 +12,7 @@ import { JsonDatasetRepository } from '../repositories/jsonDatasetRepository.js'
 import { FieldExtractionService } from './fieldExtractionService.js';
 import type { Execution } from '../types/execution.js';
 import type { Recipe } from '../types/recipe.js';
+import { DEFAULT_SCRAPE_DEPTH, MAX_SCRAPE_DEPTH } from '../types/recipe.js';
 import type { Dataset } from '../types/dataset.js';
 
 type FirecrawlClient = InstanceType<typeof Firecrawl>;
@@ -62,9 +63,7 @@ export class RecipeExecutionService {
       },
       config: {
         engine: recipe.execution.engine,
-        limit_strategy: recipe.extraction.limit_strategy,
-        page_count: recipe.extraction.page_count,
-        item_count: recipe.extraction.item_count,
+        depth: recipe.extraction.depth,
         base_url: recipe.base_url,
       },
     });
@@ -120,9 +119,7 @@ export class RecipeExecutionService {
       },
       config: {
         engine: recipe.execution.engine,
-        limit_strategy: recipe.extraction.limit_strategy,
-        page_count: recipe.extraction.page_count,
-        item_count: recipe.extraction.item_count,
+        depth: recipe.extraction.depth,
         base_url: recipe.base_url,
       },
     });
@@ -284,6 +281,33 @@ export class RecipeExecutionService {
   }
 
   /**
+   * Generate actions dynamically from pagination pattern
+   */
+  private generateActionsFromPattern(
+    actionSequence: Array<Record<string, any>>,
+    depth: number
+  ): Array<Record<string, any>> {
+    const actions: Array<Record<string, any>> = [];
+
+    for (let i = 0; i < depth; i++) {
+      actions.push(...actionSequence);
+    }
+
+    return actions;
+  }
+
+  /**
+   * Determine pagination execution approach
+   *
+   * Same-page strategies - crawl() with actions (infinite_scroll, load_more_button, spa, none)
+   * Multi-page strategies - crawl() following links (next_link, numbered_pages)
+   */
+  private shouldUseScrapeMethod(strategy: string): boolean {
+    const samePageStrategies = ['infinite_scroll', 'load_more_button', 'spa', 'none'];
+    return samePageStrategies.includes(strategy);
+  }
+
+  /**
    * Execute using Firecrawl engine
    */
   private async executeWithFirecrawl(
@@ -319,48 +343,115 @@ export class RecipeExecutionService {
     // Build JSON schema for native Firecrawl extraction
     const extractionSchema = this.buildExtractionSchema(recipe);
 
-    // Build Firecrawl crawl options with native extraction
-    const crawlOptions: any = {
-      scrapeOptions: {
-        formats: [
-          {
-            type: 'json',
-            schema: extractionSchema,
-          },
-        ],
-      },
-    };
+    // Calculate depth with MAX_SCRAPE_DEPTH cap
+    const requestedDepth = recipe.extraction.depth;
+    let appliedDepth = requestedDepth;
+    let depthWarning: string | undefined;
 
-    // Add limit based on strategy
-    if (recipe.extraction.limit_strategy === 'page_count' && recipe.extraction.page_count) {
-      crawlOptions.limit = recipe.extraction.page_count;
+    // Apply MAX_SCRAPE_DEPTH cap (product-enforced limit)
+    if (requestedDepth > MAX_SCRAPE_DEPTH) {
+      appliedDepth = MAX_SCRAPE_DEPTH;
+      depthWarning = `Requested depth of ${requestedDepth} pages exceeds maximum (${MAX_SCRAPE_DEPTH}). Capping to ${MAX_SCRAPE_DEPTH} pages.`;
+    } else if (requestedDepth < 1) {
+      appliedDepth = 1;
+      depthWarning = `Requested depth of ${requestedDepth} is below minimum (1). Setting to 1 page.`;
     }
 
-    await log('Starting Firecrawl crawl with native extraction', {
-      url: recipe.base_url,
-      limit: crawlOptions.limit,
-      fields: recipe.extraction.fields.map((f) => f.name),
-    });
+    // Log warning if depth was capped
+    if (depthWarning) {
+      await log(depthWarning, {
+        requested: requestedDepth,
+        applied: appliedDepth,
+        max_depth: MAX_SCRAPE_DEPTH,
+      }, 'warning');
+    }
+
+    // Determine execution method based on pagination strategy
+    const paginationPattern = recipe.execution.engine_config.firecrawl.pagination_pattern;
+    const useScrapeMethod = this.shouldUseScrapeMethod(paginationPattern.strategy);
+
+    // Calculate timeout once
+    const timeoutMs = recipe.execution.timeout_ms || 300000;
 
     try {
-      // Call Firecrawl API with timeout
-      await log('Waiting for Firecrawl API response...');
+      let response: any;
 
-      const crawlPromise = this.firecrawl.crawl(recipe.base_url, crawlOptions);
-      const timeoutMs = recipe.execution.timeout_ms || 300000; // Default 5 minutes
+      if (useScrapeMethod) {
+        // Same-page strategies: infinite_scroll, load_more_button, spa, none
+        // FIX: Use crawl() instead of scrape() because scrape() with JSON formats times out
+        // Use crawl() with limit to restrict to single or multiple pages based on depth
+        const actions = this.generateActionsFromPattern(
+          paginationPattern.action_sequence,
+          appliedDepth
+        );
 
-      const response = await Promise.race([
-        crawlPromise,
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error(`Firecrawl timeout after ${timeoutMs}ms`)), timeoutMs)
-        ),
-      ]) as any;
+        await log('Starting Firecrawl crawl (same-page with actions) with native extraction', {
+          url: recipe.base_url,
+          strategy: paginationPattern.strategy,
+          depth: appliedDepth,
+          actions_count: actions.length,
+          actions_preview: actions.slice(0, 4),  // Show first 4 actions
+          timeout_seconds: Math.floor(timeoutMs / 1000),
+          fields: recipe.extraction.fields.map((f) => f.name),
+        });
 
-      await log('Firecrawl crawl completed', {
-        status: response.status,
-        completed: response.completed,
-        total: response.total,
-        creditsUsed: response.creditsUsed,
+        await log('Waiting for Firecrawl API response...');
+
+        const crawlPromise = this.firecrawl.crawl(recipe.base_url, {
+          limit: appliedDepth,
+          scrapeOptions: {
+            formats: [
+              {
+                type: 'json',
+                schema: extractionSchema,
+              },
+            ],
+            actions: actions as any,
+          },
+        });
+
+        response = await Promise.race([
+          crawlPromise,
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error(`Firecrawl timeout after ${timeoutMs}ms`)), timeoutMs)
+          ),
+        ]);
+      } else {
+        // Link-following strategies: next_link, numbered_pages
+        // Use crawl() with limit
+        await log('Starting Firecrawl crawl (multi-page) with native extraction', {
+          url: recipe.base_url,
+          strategy: paginationPattern.strategy,
+          limit: appliedDepth,
+          fields: recipe.extraction.fields.map((f) => f.name),
+        });
+
+        await log('Waiting for Firecrawl API response...');
+
+        const crawlPromise = this.firecrawl.crawl(recipe.base_url, {
+          limit: appliedDepth,
+          scrapeOptions: {
+            formats: [
+              {
+                type: 'json',
+                schema: extractionSchema,
+              },
+            ],
+          },
+        });
+
+        response = await Promise.race([
+          crawlPromise,
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error(`Firecrawl timeout after ${timeoutMs}ms`)), timeoutMs)
+          ),
+        ]);
+      }
+
+      await log('Firecrawl completed', {
+        status: response.status || response.success,
+        total: response.total || 0,
+        creditsUsed: response.creditsUsed || 0,
         dataLength: response.data?.length || 0,
       });
 
@@ -370,13 +461,14 @@ export class RecipeExecutionService {
       if (response.data && response.data.length > 0) {
         await log('Storing items extracted by Firecrawl', {
           dataset_id: dataset.id,
-          page_count: response.data.length,
+          pages_returned: response.data.length,
           fields: recipe.extraction.fields.map((f) => f.name),
         });
 
         for (const page of response.data) {
-          // Firecrawl returns structured data in page.json (array of items)
-          const extractedItems = page.json || [];
+          // Firecrawl returns structured data in page.json (array of items) for crawl()
+          // or directly in the response for scrape()
+          const extractedItems = page.json || page.extract || [];
 
           // Store each item
           for (const itemData of extractedItems) {
@@ -391,7 +483,7 @@ export class RecipeExecutionService {
             await this.datasetRepo.addItem({
               dataset_id: dataset.id,
               data: itemData,
-              source_url: (page as any).url || recipe.base_url,
+              source_url: page.url || recipe.base_url,
               scraped_at: new Date().toISOString(),
             });
 
@@ -513,7 +605,7 @@ export class RecipeExecutionService {
       throw new Error(`Execution not found: ${executionId}`);
     }
 
-    const totalPages = recipe.extraction.page_count || 1;
+    const totalPages = recipe.extraction.depth;
 
     // Event: Starting execution
     await this.executionRepo.addEventAndUpdateProgress(
@@ -545,28 +637,35 @@ export class RecipeExecutionService {
     // Build JSON schema for native Firecrawl extraction
     const extractionSchema = this.buildExtractionSchema(recipe);
 
-    // Build Firecrawl crawl options with native extraction
-    const crawlOptions: any = {
-      scrapeOptions: {
-        formats: [
-          {
-            type: 'json',
-            schema: extractionSchema,
-          },
-        ],
-      },
-    };
+    // Calculate depth with MAX_SCRAPE_DEPTH cap
+    const requestedDepth = recipe.extraction.depth;
+    let appliedDepth = requestedDepth;
+    let depthWarning: string | undefined;
 
-    // Add limit based on strategy
-    if (recipe.extraction.limit_strategy === 'page_count' && recipe.extraction.page_count) {
-      crawlOptions.limit = recipe.extraction.page_count;
+    // Apply MAX_SCRAPE_DEPTH cap (product-enforced limit)
+    if (requestedDepth > MAX_SCRAPE_DEPTH) {
+      appliedDepth = MAX_SCRAPE_DEPTH;
+      depthWarning = `Requested depth of ${requestedDepth} pages exceeds maximum (${MAX_SCRAPE_DEPTH}). Capping to ${MAX_SCRAPE_DEPTH} pages.`;
+    } else if (requestedDepth < 1) {
+      appliedDepth = 1;
+      depthWarning = `Requested depth of ${requestedDepth} is below minimum (1). Setting to 1 page.`;
     }
 
-    await log('Starting Firecrawl crawl with native extraction', {
-      url: recipe.base_url,
-      limit: crawlOptions.limit,
-      fields: recipe.extraction.fields.map((f) => f.name),
-    });
+    // Log warning if depth was capped
+    if (depthWarning) {
+      await log(depthWarning, {
+        requested: requestedDepth,
+        applied: appliedDepth,
+        max_depth: MAX_SCRAPE_DEPTH,
+      }, 'warning');
+    }
+
+    // Determine execution method based on pagination strategy
+    const paginationPattern = recipe.execution.engine_config.firecrawl.pagination_pattern;
+    const useScrapeMethod = this.shouldUseScrapeMethod(paginationPattern.strategy);
+
+    // Calculate timeout once
+    const timeoutMs = recipe.execution.timeout_ms || 300000;
 
     // Event: Starting scrape
     await this.executionRepo.addEventAndUpdateProgress(
@@ -580,24 +679,84 @@ export class RecipeExecutionService {
     );
 
     try {
-      // Call Firecrawl API with timeout
-      await log('Waiting for Firecrawl API response...');
+      let response: any;
 
-      const crawlPromise = this.firecrawl.crawl(recipe.base_url, crawlOptions);
-      const timeoutMs = recipe.execution.timeout_ms || 300000; // Default 5 minutes
+      if (useScrapeMethod) {
+        // Same-page strategies: infinite_scroll, load_more_button, spa, none
+        // FIX: Use crawl() instead of scrape() because scrape() with JSON formats times out
+        // Use crawl() with limit to restrict to single or multiple pages based on depth
+        const actions = this.generateActionsFromPattern(
+          paginationPattern.action_sequence,
+          appliedDepth
+        );
 
-      const response = await Promise.race([
-        crawlPromise,
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error(`Firecrawl timeout after ${timeoutMs}ms`)), timeoutMs)
-        ),
-      ]) as any;
+        await log('Starting Firecrawl crawl (same-page with actions) with native extraction', {
+          url: recipe.base_url,
+          strategy: paginationPattern.strategy,
+          depth: appliedDepth,
+          actions_count: actions.length,
+          actions_preview: actions.slice(0, 4),  // Show first 4 actions
+          timeout_seconds: Math.floor(timeoutMs / 1000),
+          fields: recipe.extraction.fields.map((f) => f.name),
+        });
 
-      await log('Firecrawl crawl completed', {
-        status: response.status,
-        completed: response.completed,
-        total: response.total,
-        creditsUsed: response.creditsUsed,
+        await log('Waiting for Firecrawl API response...');
+
+        const crawlPromise = this.firecrawl.crawl(recipe.base_url, {
+          limit: appliedDepth,
+          scrapeOptions: {
+            formats: [
+              {
+                type: 'json',
+                schema: extractionSchema,
+              },
+            ],
+            actions: actions as any,
+          },
+        });
+
+        response = await Promise.race([
+          crawlPromise,
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error(`Firecrawl timeout after ${timeoutMs}ms`)), timeoutMs)
+          ),
+        ]);
+      } else {
+        // Link-following strategies: next_link, numbered_pages
+        // Use crawl() with limit
+        await log('Starting Firecrawl crawl (multi-page) with native extraction', {
+          url: recipe.base_url,
+          strategy: paginationPattern.strategy,
+          limit: appliedDepth,
+          fields: recipe.extraction.fields.map((f) => f.name),
+        });
+
+        await log('Waiting for Firecrawl API response...');
+
+        const crawlPromise = this.firecrawl.crawl(recipe.base_url, {
+          limit: appliedDepth,
+          scrapeOptions: {
+            formats: [
+              {
+                type: 'json',
+                schema: extractionSchema,
+              },
+            ],
+          },
+        });
+
+        response = await Promise.race([
+          crawlPromise,
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error(`Firecrawl timeout after ${timeoutMs}ms`)), timeoutMs)
+          ),
+        ]);
+      }
+
+      await log('Firecrawl completed', {
+        status: response.status || response.success,
+        total: response.total || 0,
+        creditsUsed: response.creditsUsed || 0,
         dataLength: response.data?.length || 0,
       });
 
@@ -620,7 +779,7 @@ export class RecipeExecutionService {
       if (response.data && response.data.length > 0) {
         await log('Storing items extracted by Firecrawl', {
           dataset_id: dataset.id,
-          page_count: response.data.length,
+          pages_returned: response.data.length,
           fields: recipe.extraction.fields.map((f) => f.name),
         });
 
@@ -630,8 +789,9 @@ export class RecipeExecutionService {
           const page = response.data[i];
           const pageNum = i + 1;
 
-          // Firecrawl returns structured data in page.json (array of items)
-          const extractedItems = page.json || [];
+          // Firecrawl returns structured data in page.json (array of items) for crawl()
+          // or directly in the response for scrape()
+          const extractedItems = page.json || page.extract || [];
 
           // Event: Processing page
           await this.executionRepo.addEventAndUpdateProgress(
@@ -660,7 +820,7 @@ export class RecipeExecutionService {
             await this.datasetRepo.addItem({
               dataset_id: dataset.id,
               data: itemData,
-              source_url: (page as any).url || recipe.base_url,
+              source_url: page.url || recipe.base_url,
               scraped_at: new Date().toISOString(),
             });
 

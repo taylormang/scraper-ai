@@ -56,6 +56,11 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(data),
       }),
+    update: (id: string, data: { prompt: string }) =>
+      request<any>(`/api/recipes/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
     delete: (id: string) =>
       request<any>(`/api/recipes/${id}`, {
         method: 'DELETE',

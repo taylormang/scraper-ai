@@ -1,3 +1,15 @@
+
+# GET
+### Get Sources
+GET http://localhost:3001/api/sources
+### Get Recipes
+GET http://localhost:3001/api/recipes
+### Get Executions
+GET http://localhost:3001/api/executions
+### Get Execution Logs
+GET http://localhost:3001/api/executions/execution_1761966883488_nzatjdn
+
+
 ### Create Recipe from natural language prompt - HN (10 pages)
 POST http://localhost:3001/api/recipes
 Content-Type: application/json
@@ -16,8 +28,8 @@ Content-Type: application/json
   "user_id": "test_user_1"
 }
 
-### Get all Recipes
-GET http://localhost:3001/api/recipes
+### Get all Sources
+GET http://localhost:3001/api/sources
 
 ### Get Recipes for specific user
 GET http://localhost:3001/api/recipes?user_id=test_user_1
@@ -27,3 +39,4 @@ GET http://localhost:3001/api/recipes/recipe_abc123
 
 ### Delete Recipe by ID
 DELETE http://localhost:3001/api/recipes/recipe_abc123
+

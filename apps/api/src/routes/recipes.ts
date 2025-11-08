@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { ApiError, type ApiResponse } from '../types/index.js';
 import { JsonRecipeRepository } from '../repositories/jsonRecipeRepository.js';
 import { JsonSourceRepository } from '../repositories/jsonSourceRepository.js';
-import { createRecipeFromPrompt } from '../services/recipeService.js';
+import { createRecipeFromPrompt, updateRecipeFromPrompt } from '../services/recipeService.js';
 
 const router = Router();
 const recipeRepository = new JsonRecipeRepository();
@@ -124,6 +124,76 @@ router.get('/', async (req, res, next) => {
     res.json(response);
   } catch (error) {
     console.error('[Recipes] Error:', error);
+    next(error);
+  }
+});
+
+/**
+ * PATCH /api/recipes/:id
+ * Update a Recipe using natural language
+ *
+ * AI Workflow to update a Recipe:
+ * 1. Fetch current Recipe configuration
+ * 2. Analyze user's natural language update prompt
+ * 3. Extract only the changes requested
+ * 4. Apply updates to Recipe
+ * 5. Recompile engine config if needed
+ */
+router.patch('/:id', async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const updateSchema = z.object({
+      prompt: z.string().min(1, 'Update prompt is required'),
+    });
+
+    const parsed = updateSchema.safeParse(req.body);
+    if (!parsed.success) {
+      throw new ApiError(parsed.error.errors[0].message, 400, 'VALIDATION_ERROR');
+    }
+
+    const { prompt } = parsed.data;
+
+    // Execute Recipe update workflow
+    const result = await updateRecipeFromPrompt({
+      recipeId: id,
+      updatePrompt: prompt,
+      recipeRepository,
+      sourceRepository,
+    });
+
+    const { recipe, source, changes } = result;
+
+    const response: ApiResponse = {
+      success: true,
+      data: {
+        recipe: {
+          id: recipe.id,
+          name: recipe.name,
+          description: recipe.description,
+          source_id: recipe.source_id,
+          base_url: recipe.base_url,
+          extraction: recipe.extraction,
+          execution: {
+            engine: recipe.execution.engine,
+            engine_config: recipe.execution.engine_config,
+          },
+          status: recipe.status,
+          updated_at: recipe.updated_at,
+        },
+        source: {
+          id: source.id,
+          url: source.url,
+          domain: source.domain,
+        },
+        changes,
+      },
+      timestamp: new Date().toISOString(),
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error('[Recipes] Update error:', error);
     next(error);
   }
 });

@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 import { config } from '../../config/index.js';
 import type { RecipeField } from '../../types/recipe.js';
+import { DEFAULT_SCRAPE_DEPTH, MAX_SCRAPE_DEPTH } from '../../types/recipe.js';
 
 const MODEL_NAME = 'gpt-4o-mini';
 
@@ -16,8 +17,7 @@ Return JSON of the form:
     {"name": "author", "type": "string", "required": false},
     {"name": "link", "type": "url", "required": true}
   ],
-  "limit_strategy": "page_count",
-  "page_count": 10,
+  "depth": 3,
   "deduplicate": true,
   "deduplicate_field": "link"
 }
@@ -27,9 +27,15 @@ Rules:
 - Infer field names and types from what the user wants to extract
 - Field types: "string", "number", "date", "url"
 - Mark fields as required if they seem essential to the user's request
-- Default to page_count strategy (use item_count or date_range only if explicitly mentioned)
-- If user says "all pages" or similar, use a high page_count like 100
-- If user doesn't specify pagination depth, default to 5 pages
+- "depth" represents number of pages to scrape (1-10, default 3)
+- Interpret user's intent for depth:
+  * No mention of quantity → depth: 3 (default, fast results)
+  * "quick", "fast", "sample" → depth: 1
+  * "X pages" → depth: X (capped at 10)
+  * "X items" → depth: Math.ceil(X / 30), assuming ~30 items per page (capped at 10)
+  * "deep", "comprehensive", "everything" → depth: 10 (maximum)
+  * "all pages" → depth: 10 (maximum)
+- IMPORTANT: depth must be between 1-10 (enforced maximum)
 - Generate a clear, descriptive name for the recipe
 - Enable deduplication by default if there's a clear unique identifier field
 
@@ -46,8 +52,7 @@ Output: {
     {"name": "link", "type": "url", "required": true},
     {"name": "comments", "type": "number", "required": false}
   ],
-  "limit_strategy": "page_count",
-  "page_count": 10,
+  "depth": 10,
   "deduplicate": true,
   "deduplicate_field": "link"
 }
@@ -63,10 +68,27 @@ Output: {
     {"name": "rating", "type": "number", "required": false},
     {"name": "url", "type": "url", "required": true}
   ],
-  "limit_strategy": "page_count",
-  "page_count": 100,
+  "depth": 10,
   "deduplicate": true,
   "deduplicate_field": "url"
+}
+
+User: "scrape zillow real estate listings for spring city, pa - extract 100 items total"
+Output: {
+  "url": "https://www.zillow.com/spring-city-pa/",
+  "name": "Zillow Real Estate Listings for Spring City, PA",
+  "description": "100 real estate listings from Zillow for Spring City, PA",
+  "fields": [
+    {"name": "address", "type": "string", "required": true},
+    {"name": "price", "type": "number", "required": true},
+    {"name": "bedrooms", "type": "number", "required": false},
+    {"name": "bathrooms", "type": "number", "required": false},
+    {"name": "square_footage", "type": "number", "required": false},
+    {"name": "listing_url", "type": "url", "required": true}
+  ],
+  "depth": 4,
+  "deduplicate": true,
+  "deduplicate_field": "listing_url"
 }`;
 
 export interface PromptAnalysisResult {
@@ -74,13 +96,7 @@ export interface PromptAnalysisResult {
   name: string;
   description?: string;
   fields: RecipeField[];
-  limit_strategy: 'page_count' | 'item_count' | 'date_range';
-  page_count?: number;
-  item_count?: number;
-  date_range?: {
-    start: string;
-    end: string;
-  };
+  depth: number; // Scrape depth (1-10)
   deduplicate: boolean;
   deduplicate_field?: string;
 }
@@ -115,15 +131,24 @@ export async function analyzeRecipePrompt(prompt: string): Promise<PromptAnalysi
 
   const parsed = JSON.parse(content);
 
+  // Extract and validate depth
+  let depth = parsed.depth ?? DEFAULT_SCRAPE_DEPTH;
+
+  // Apply MAX_SCRAPE_DEPTH cap
+  if (depth > MAX_SCRAPE_DEPTH) {
+    console.log(`[PromptAnalysis] Depth ${depth} exceeds max (${MAX_SCRAPE_DEPTH}), capping to ${MAX_SCRAPE_DEPTH}`);
+    depth = MAX_SCRAPE_DEPTH;
+  } else if (depth < 1) {
+    console.log(`[PromptAnalysis] Depth ${depth} below minimum (1), setting to ${DEFAULT_SCRAPE_DEPTH}`);
+    depth = DEFAULT_SCRAPE_DEPTH;
+  }
+
   return {
     url: parsed.url,
     name: parsed.name || 'Untitled Recipe',
     description: parsed.description,
     fields: parsed.fields || [],
-    limit_strategy: parsed.limit_strategy || 'page_count',
-    page_count: parsed.page_count,
-    item_count: parsed.item_count,
-    date_range: parsed.date_range,
+    depth,
     deduplicate: parsed.deduplicate ?? true,
     deduplicate_field: parsed.deduplicate_field,
   };

@@ -3,7 +3,10 @@ import type { Recipe } from '../types/recipe.js';
 import type { Source } from '../types/source.js';
 import type { JsonRecipeRepository } from '../repositories/jsonRecipeRepository.js';
 import type { JsonSourceRepository } from '../repositories/jsonSourceRepository.js';
-import { analyzeRecipePrompt, compileRecipeEngineConfig } from './recipe/index.js';
+import {
+  analyzeRecipePrompt,
+  analyzeRecipeUpdatePrompt,
+} from './recipe/index.js';
 import { executeSourceWorkflow } from './source/index.js';
 import { createSourceFromUrl } from './sourceService.js';
 
@@ -45,8 +48,7 @@ export async function createRecipeFromPrompt(
   console.log('[RecipeService] ✓ Prompt analysis complete:', {
     url: promptAnalysis.url,
     fields: promptAnalysis.fields.length,
-    limit_strategy: promptAnalysis.limit_strategy,
-    page_count: promptAnalysis.page_count,
+    depth: promptAnalysis.depth,
   });
 
   // ========================================================================
@@ -84,18 +86,20 @@ export async function createRecipeFromPrompt(
   }
 
   // ========================================================================
-  // Step 3: Compile Recipe-specific engine configuration
+  // Step 3: Get engine configuration from Source
   // ========================================================================
 
-  const pageCount = promptAnalysis.page_count || 5; // Default to 5 pages
-  const engineConfig = compileRecipeEngineConfig({
-    source,
-    pageCount,
-  });
+  if (!source.engine_configs?.firecrawl?.pagination_pattern) {
+    throw new Error('Source does not have valid engine configuration');
+  }
 
-  console.log('[RecipeService] ✓ Engine config compiled:', {
-    actions: engineConfig.firecrawl.actions.length,
-    strategy: source.pagination?.strategy,
+  const engineConfig = {
+    firecrawl: source.engine_configs.firecrawl,
+  };
+
+  console.log('[RecipeService] ✓ Engine config loaded from Source:', {
+    strategy: engineConfig.firecrawl.pagination_pattern.strategy,
+    actions: engineConfig.firecrawl.pagination_pattern.action_sequence.length,
   });
 
   // ========================================================================
@@ -109,10 +113,7 @@ export async function createRecipeFromPrompt(
     source_id: source.id,
     base_url: promptAnalysis.url,
     extraction: {
-      limit_strategy: promptAnalysis.limit_strategy,
-      page_count: promptAnalysis.page_count,
-      item_count: promptAnalysis.item_count,
-      date_range: promptAnalysis.date_range,
+      depth: promptAnalysis.depth,
       fields: promptAnalysis.fields,
       include_raw_content: false, // Default
       deduplicate: promptAnalysis.deduplicate,
@@ -158,5 +159,132 @@ export async function createRecipeFromPrompt(
     recipe,
     source,
     created: isNewSource,
+  };
+}
+
+export interface UpdateRecipeFromPromptInput {
+  recipeId: string;
+  updatePrompt: string;
+  recipeRepository: JsonRecipeRepository;
+  sourceRepository: JsonSourceRepository;
+}
+
+export interface UpdateRecipeFromPromptResult {
+  recipe: Recipe;
+  source: Source;
+  changes: string[];
+}
+
+/**
+ * Update a Recipe from natural language prompt
+ *
+ * Workflow:
+ * 1. Fetch current Recipe
+ * 2. Analyze update prompt with AI to extract changes
+ * 3. Apply changes to Recipe
+ * 4. Recompile engine config if extraction settings changed
+ * 5. Update Recipe in repository
+ */
+export async function updateRecipeFromPrompt(
+  input: UpdateRecipeFromPromptInput
+): Promise<UpdateRecipeFromPromptResult> {
+  const { recipeId, updatePrompt, recipeRepository, sourceRepository } = input;
+
+  console.log('[RecipeService] Updating Recipe from prompt:', recipeId, updatePrompt);
+
+  // ========================================================================
+  // Step 1: Fetch current Recipe
+  // ========================================================================
+
+  const currentRecipe = await recipeRepository.findById(recipeId);
+  if (!currentRecipe) {
+    throw new Error(`Recipe ${recipeId} not found`);
+  }
+
+  console.log('[RecipeService] ✓ Current Recipe loaded:', currentRecipe.name);
+
+  // ========================================================================
+  // Step 2: Analyze update prompt with AI
+  // ========================================================================
+
+  const updates = await analyzeRecipeUpdatePrompt(currentRecipe, updatePrompt);
+  console.log('[RecipeService] ✓ Update analysis complete:', Object.keys(updates));
+
+  if (Object.keys(updates).length === 0) {
+    console.log('[RecipeService] No changes detected');
+    const source = await sourceRepository.findById(currentRecipe.source_id);
+    return {
+      recipe: currentRecipe,
+      source: source!,
+      changes: [],
+    };
+  }
+
+  // ========================================================================
+  // Step 3: Build updated Recipe data
+  // ========================================================================
+
+  const changes: string[] = [];
+  const recipeUpdate: Partial<Recipe> = {};
+
+  // Update basic fields
+  if (updates.name !== undefined) {
+    recipeUpdate.name = updates.name;
+    changes.push(`name: "${currentRecipe.name}" → "${updates.name}"`);
+  }
+
+  if (updates.description !== undefined) {
+    recipeUpdate.description = updates.description;
+    changes.push(`description updated`);
+  }
+
+  // Update extraction config
+  const extractionChanges: any = {};
+  let extractionUpdated = false;
+
+  if (updates.fields !== undefined) {
+    extractionChanges.fields = updates.fields;
+    extractionUpdated = true;
+    changes.push(`fields: ${updates.fields.length} fields configured`);
+  }
+
+  if (updates.depth !== undefined) {
+    extractionChanges.depth = updates.depth;
+    extractionUpdated = true;
+    changes.push(`depth: ${currentRecipe.extraction.depth} → ${updates.depth}`);
+  }
+
+  if (updates.deduplicate !== undefined) {
+    extractionChanges.deduplicate = updates.deduplicate;
+    extractionUpdated = true;
+    changes.push(`deduplicate: ${updates.deduplicate}`);
+  }
+
+  if (updates.deduplicate_field !== undefined) {
+    extractionChanges.deduplicate_field = updates.deduplicate_field;
+    extractionUpdated = true;
+    changes.push(`deduplicate_field: "${updates.deduplicate_field ?? 'none'}"`);
+  }
+
+  if (extractionUpdated) {
+    recipeUpdate.extraction = {
+      ...currentRecipe.extraction,
+      ...extractionChanges,
+    };
+  }
+
+  // ========================================================================
+  // Step 5: Update Recipe in repository
+  // ========================================================================
+
+  const updatedRecipe = await recipeRepository.update(recipeId, recipeUpdate);
+  console.log('[RecipeService] ✓ Recipe updated:', updatedRecipe.id);
+
+  const source = await sourceRepository.findById(updatedRecipe.source_id);
+
+  return {
+    recipe: updatedRecipe,
+    source: source!,
+    changes,
   };
 }

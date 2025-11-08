@@ -1,84 +1,90 @@
+// Recipe type - Scraping configuration
+// Aligned with /docs/architecture_v1.md
+
+import { PaginationStrategy, PaginationConfig } from './pagination';
+import { JSONSchema, Selectors, ValidationRule } from './extraction';
+
 export interface Recipe {
   id: string;
-  user_id: string;
-  name: string;
-  description?: string;
+  name: string; // "HN front page posts"
+  description: string; // User's original intent
+  userId: string; // Creator
 
-  source_id: string;
-  base_url: string;
+  version: number; // For recipe evolution
 
+  // Multi-source support
+  sources: RecipeSource[];
+
+  // What to extract (unified schema across all sources)
   extraction: {
-    limit_strategy: 'page_count' | 'item_count' | 'date_range';
+    schema: JSONSchema; // Target data structure
 
-    // If page_count
-    page_count?: number;
+    // Source-specific selectors
+    selectorsBySource: Record<string, Selectors>;
 
-    // If item_count
-    item_count?: number;
+    // Optional: field name mappings
+    // e.g., { amazon: { cost: 'price' }, walmart: { amount: 'price' } }
+    fieldMappings?: Record<string, Record<string, string>>;
 
-    // If date_range
-    date_range?: {
-      start: string;
-      end: string;
-    };
-
-    fields: RecipeField[];
-
-    include_raw_content: boolean;
-    deduplicate: boolean;
-    deduplicate_field?: string;
-  };
-
-  execution: {
-    engine: 'firecrawl';
-    engine_config: {
-      firecrawl: {
-        actions: Array<Record<string, any>>;
-        formats: string[];
-        wait_for?: string | null;
-      };
-    };
-    rate_limit: {
-      delay_ms: number;
-      max_concurrent: number;
-    };
-    retry: {
-      max_attempts: number;
-      backoff_ms: number;
-    };
-    timeout_ms: number;
-  };
-
-  schedule: null | {
-    enabled: boolean;
-    cron: string;
-    timezone: string;
-    next_run: string;
-  };
-
-  datasets: {
-    active_id?: string;
-    total_runs: number;
-    last_run?: {
-      dataset_id: string;
-      status: 'complete' | 'in_progress' | 'failed' | 'cancelled';
-      started_at: string;
-      completed_at?: string;
-      items_scraped: number;
-      pages_scraped: number;
-      errors: number;
+    // Validation rules
+    validation?: {
+      required: string[]; // Required fields
+      minItems?: number; // Minimum items per execution
+      customRules?: ValidationRule[];
     };
   };
 
-  status: 'active' | 'paused' | 'archived';
+  // How to paginate
+  pagination: {
+    strategy: PaginationStrategy;
+    config: PaginationConfig;
+    maxPages?: number; // Safety limit
+    maxItems?: number; // Alternative limit
+  };
 
-  created_at: string;
-  updated_at: string;
+  // Which tool to use
+  executor: 'firecrawl' | 'scrapingbee' | 'browserless';
+
+  // Performance tracking
+  metrics: {
+    totalExecutions: number;
+    successRate: number; // 0-1
+    avgDuration: number; // milliseconds
+    avgCost: number; // USD
+    avgItemsPerExecution: number;
+  };
+
+  // Recipe lifecycle
+  status: 'active' | 'deprecated' | 'archived';
+
+  createdAt: Date;
+  updatedAt: Date;
 }
 
+// Source reference within a Recipe
+export interface RecipeSource {
+  sourceId: string;
+  label?: string; // Optional: 'amazon', 'walmart'
+
+  // Source-specific overrides
+  filters?: {
+    maxPages?: number;
+    includePaths?: string[]; // Override source defaults
+    excludePaths?: string[];
+  };
+
+  // Optional: for weighted sampling
+  weight?: number; // 0-1, relative priority
+}
+
+// Legacy field type (for migration)
 export interface RecipeField {
   name: string;
   type: 'string' | 'number' | 'date' | 'url';
   required: boolean;
   default?: any;
 }
+
+// Scrape depth constants (deprecated, replaced by pagination.maxPages)
+export const DEFAULT_SCRAPE_DEPTH = 3;
+export const MAX_SCRAPE_DEPTH = 10;

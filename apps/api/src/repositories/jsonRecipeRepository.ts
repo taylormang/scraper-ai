@@ -2,9 +2,11 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { nanoid } from 'nanoid';
 import type { Recipe } from '../types/recipe.js';
+import type { Source } from '../types/source.js';
 
 const DATA_DIR = path.join(process.cwd(), 'data', 'recipes');
 const RECIPES_FILE = path.join(DATA_DIR, 'recipes.json');
+const SOURCES_FILE = path.join(process.cwd(), 'data', 'sources', 'sources.json');
 
 export class JsonRecipeRepository {
   private async ensureDataDir(): Promise<void> {
@@ -91,5 +93,22 @@ export class JsonRecipeRepository {
 
     await this.writeRecipes(filtered);
     return true;
+  }
+
+  async getSourceForRecipe(recipeId: string): Promise<Source | null> {
+    try {
+      const recipe = await this.findById(recipeId);
+      if (!recipe) return null;
+
+      const sourcesData = await fs.readFile(SOURCES_FILE, 'utf-8');
+      const sources: Source[] = JSON.parse(sourcesData);
+
+      return sources.find((s) => s.id === recipe.source_id) || null;
+    } catch (error: any) {
+      if (error.code === 'ENOENT') {
+        return null;
+      }
+      throw error;
+    }
   }
 }

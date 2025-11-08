@@ -7,7 +7,12 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { Execution, ExecutionLog, ExecutionEvent, ExecutionProgress } from '../types/execution.js';
+import type {
+  Execution,
+  ExecutionLog,
+  ExecutionEvent,
+  ExecutionProgress,
+} from '../types/execution.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -33,14 +38,13 @@ export class JsonExecutionRepository {
   }
 
   private async loadExecutions(): Promise<Execution[]> {
-    if (this.executionsCache) {
-      return this.executionsCache;
-    }
-
+    // Always read from disk to ensure fresh data
     try {
       const data = await fs.readFile(EXECUTIONS_FILE, 'utf-8');
-      this.executionsCache = JSON.parse(data);
-      return this.executionsCache!;
+      const executions = JSON.parse(data);
+      // Update cache after reading (for write operations)
+      this.executionsCache = executions;
+      return executions;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
         this.executionsCache = [];
@@ -56,14 +60,13 @@ export class JsonExecutionRepository {
   }
 
   private async loadLogs(): Promise<ExecutionLog[]> {
-    if (this.logsCache) {
-      return this.logsCache;
-    }
-
+    // Always read from disk to ensure fresh data
     try {
       const data = await fs.readFile(EXECUTION_LOGS_FILE, 'utf-8');
-      this.logsCache = JSON.parse(data);
-      return this.logsCache!;
+      const logs = JSON.parse(data);
+      // Update cache after reading (for write operations)
+      this.logsCache = logs;
+      return logs;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
         this.logsCache = [];
@@ -160,7 +163,8 @@ export class JsonExecutionRepository {
   ): Promise<ExecutionLog> {
     const logs = await this.loadLogs();
     const executionLogs = logs.filter((l) => l.execution_id === executionId);
-    const nextSequence = executionLogs.length > 0 ? Math.max(...executionLogs.map((l) => l.sequence)) + 1 : 0;
+    const nextSequence =
+      executionLogs.length > 0 ? Math.max(...executionLogs.map((l) => l.sequence)) + 1 : 0;
 
     const newLog: ExecutionLog = {
       ...log,
@@ -266,7 +270,7 @@ export class JsonExecutionRepository {
 
     return this.update(executionId, {
       events: execution.events,
-      progress: updatedProgress
+      progress: updatedProgress,
     });
   }
 }
